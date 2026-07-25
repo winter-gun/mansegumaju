@@ -393,6 +393,7 @@ body{
       <button class="mrow" id="mBgSet"><span>배경 사진 넣기</span><small>사진 위에 그리기</small></button>
       <button class="mrow" id="mBgClear" hidden><span>배경 사진 빼기</span><small></small></button>
       <button class="mrow" id="mSound"><span>잔잔한 소리</span><small id="sSound"></small></button>
+      <button class="mrow" id="mMySnd"><span>내 소리</span><small id="sMySnd">녹음·파일</small></button>
       <button class="mrow" id="mSeason"><span>계절 효과</span><small id="sSeason"></small></button>
       <button class="mrow" id="mAcc"><span>고구마 꾸미기</span><small id="sAcc"></small></button>
       <button class="mrow" id="mCheer"><span>나만의 문구</span><small>저장 화면 인사말</small></button>
@@ -411,6 +412,20 @@ body{
       <button id="hueUse" class="tbtn">이 색으로 그리기</button>
       <button id="hueClose" class="tbtn">닫기</button>
     </div>
+  </div>
+
+  <div id="soundsOv" class="overlay hidden">
+    <div class="big">내 소리</div>
+    <div class="small">아롱이 숨소리도, 좋아하는 노래도 — 전부 이 기기 안에만 저장돼요</div>
+    <div id="mySndList"></div>
+    <div class="small" id="sndStatus"></div>
+    <div class="row">
+      <button id="recBtn" class="tbtn">🎙 녹음하기</button>
+      <button id="sndFileBtn" class="tbtn">파일 올리기</button>
+      <button id="sndBreathBtn" class="tbtn">호흡 볼륨: 켜짐</button>
+      <button id="soundsClose" class="tbtn">닫기</button>
+    </div>
+    <input type="file" id="sndInput" accept="audio/*" hidden>
   </div>
 
   <div id="cheerOv" class="overlay hidden">
@@ -493,7 +508,12 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       cheerInMain = $('cheerInMain'), cheerInSub = $('cheerInSub'),
       cheerAdd = $('cheerAdd'), cheerClose = $('cheerClose'),
       slideBtn = $('slideBtn'), postBtn = $('postBtn'),
-      toolStampBtn = $('toolStamp');
+      toolStampBtn = $('toolStamp'),
+      soundsOv = $('soundsOv'), mySndList = $('mySndList'),
+      sndStatus = $('sndStatus'), recBtn = $('recBtn'),
+      sndFileBtn = $('sndFileBtn'), sndBreathBtn = $('sndBreathBtn'),
+      soundsClose = $('soundsClose'), sndInput = $('sndInput'),
+      sMySnd = $('sMySnd');
 
 let userPhotos = [];  // 직접 추가한 사진 {id, ts, data} — 이 기기 안에만 저장
 const photoPool = () => PHOTOS.concat(userPhotos.map(p => p.data));
@@ -527,6 +547,10 @@ function frame(now) {
   else                        { s = 1 - easeIO((m - INHALE - HOLD) / EXHALE);  ph = 2; }
   breathInner.style.transform = 'scale(' + (1 + .16 * s).toFixed(4) + ')';
   halo.style.opacity = (.45 + .4 * s).toFixed(3);
+  breathS = s;
+  if (mySnd.gain) {
+    mySnd.gain.gain.value = sndBreathOn ? (.35 + .55 * s) : .9;  // 호흡 따라 은은하게
+  }
   if (ph !== lastPhase && now > breathHoldUntil) {
     lastPhase = ph;
     cue.style.opacity = 0;
@@ -572,6 +596,10 @@ let seasonOn = false;
 let accIdx = 0;
 const ACCS = ['없음', '밀짚모자', '목도리', '리본'];
 let sndMode = 0, sndCtx = null, sndNodes = [];
+let breathS = 0;  // 현재 호흡 위상(0~1) — frame()에서 갱신
+let mySnd = { id: 0, el: null, gain: null, url: null };  // 내 소리 재생 상태
+let sndBreathOn = true;
+try { sndBreathOn = localStorage.getItem('mansegumaju.sndBreath') !== 'f'; } catch (_) {}
 
 const baseW = () => 4.5 * SIZES[sizeIdx];
 const markerW = () => baseW() * 2.6;
@@ -970,12 +998,13 @@ replayOv.addEventListener('pointerdown', endReplay);
 /* ── 보관함: 저장한 그림을 획 데이터째 보관, 타임랩스 재생 ── */
 function dbOpen() {
   return new Promise((res, rej) => {
-    const q = indexedDB.open('mansegumaju-db', 3);
+    const q = indexedDB.open('mansegumaju-db', 4);
     q.onupgradeneeded = () => {
       const db = q.result;
       if (!db.objectStoreNames.contains('works')) db.createObjectStore('works', { keyPath: 'id', autoIncrement: true });
       if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
       if (!db.objectStoreNames.contains('state')) db.createObjectStore('state', { keyPath: 'k' });
+      if (!db.objectStoreNames.contains('sounds')) db.createObjectStore('sounds', { keyPath: 'id', autoIncrement: true });
     };
     q.onsuccess = () => res(q.result);
     q.onerror = () => rej(q.error);
@@ -1480,6 +1509,8 @@ document.addEventListener('keydown', e => {
     menuOv.classList.add('hidden');
     wheelOv.classList.add('hidden');
     cheerOv.classList.add('hidden');
+    stopRec();
+    soundsOv.classList.add('hidden');
   }
 });
 
@@ -1636,6 +1667,7 @@ function soundApply() {
   try {
     if (!sndCtx) sndCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (sndCtx.resume) sndCtx.resume();
+    if (sndMode === 3) { pianoStart(); return; }
     const len = sndCtx.sampleRate * 2;
     const buf = sndCtx.createBuffer(1, len, sndCtx.sampleRate);
     const dd = buf.getChannelData(0);
@@ -1647,20 +1679,103 @@ function soundApply() {
     if (sndMode === 1) {         // 빗소리
       f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = .45;
       g.gain.value = .05;
-    } else {                     // 파도
+    } else {                     // 파도 — 호흡 주기에 맞춰 밀려오고 빠짐
       f.type = 'lowpass'; f.frequency.value = 420;
-      g.gain.value = .045;
-      const lfo = sndCtx.createOscillator();
-      lfo.frequency.value = .07;
-      const lg = sndCtx.createGain();
-      lg.gain.value = .028;
-      lfo.connect(lg); lg.connect(g.gain); lfo.start();
-      sndNodes.push(lfo, lg);
+      g.gain.value = .02;
+      const swell = setInterval(() => {
+        try { g.gain.setTargetAtTime(.015 + .05 * breathS, sndCtx.currentTime, .25); } catch (_) {}
+      }, 120);
+      sndNodes.push({ stop() { clearInterval(swell); }, disconnect() {} });
     }
     src.connect(f); f.connect(g); g.connect(sndCtx.destination);
     src.start();
     sndNodes.push(src, f, g);
   } catch (_) { sndMode = 0; }
+}
+
+/* ── 피아노 호흡: 잔잔한 코드 진행이 호흡을 따라 흐름 ── */
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+// Am — F — C — G (라단조 감성 진행), [베이스, 코드톤들, 색채음]
+const PNO_PROG = [
+  { bass: 45, tones: [57, 60, 64, 69], color: 71 },   // Am (+9=B)
+  { bass: 41, tones: [53, 57, 60, 65], color: 67 },   // F  (+9=G)
+  { bass: 48, tones: [60, 64, 67, 72], color: 74 },   // C  (+9=D)
+  { bass: 43, tones: [55, 59, 62, 67], color: 69 }    // G  (+9=A)
+];
+let pnoBar = 0, pnoNextAt = 0, pnoTimer = 0, pnoGain = null;
+function pianoNote(midi, at, vel, dur) {
+  const f = mtof(midi);
+  const o1 = sndCtx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f;
+  const o2 = sndCtx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2.003;
+  const g2 = sndCtx.createGain(); g2.gain.value = .25;
+  const lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400 + vel * 3500;
+  const g = sndCtx.createGain();
+  g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(vel, at + .012);
+  g.gain.exponentialRampToValueAtTime(.0004, at + dur);
+  o1.connect(lp); o2.connect(g2); g2.connect(lp);
+  lp.connect(g); g.connect(pnoGain);
+  o1.start(at); o2.start(at);
+  o1.stop(at + dur + .1); o2.stop(at + dur + .1);
+}
+function pianoPad(midis, at, dur) {
+  for (const m of midis) {
+    const o = sndCtx.createOscillator(); o.type = 'sine'; o.frequency.value = mtof(m);
+    const g = sndCtx.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(.014, at + dur * .35);
+    g.gain.linearRampToValueAtTime(.0001, at + dur);
+    o.connect(g); g.connect(pnoGain);
+    o.start(at); o.stop(at + dur + .1);
+  }
+}
+function pianoCycle(atSec) {
+  const ch = PNO_PROG[pnoBar % PNO_PROG.length];
+  pnoBar++;
+  const inS = INHALE / 1000, hoS = HOLD / 1000, exS = EXHALE / 1000;
+  const jit = () => (Math.random() - .5) * .07;
+  const vj = () => (Math.random() - .5) * .05;
+  // 낮은 베이스 + 옅은 패드가 사이클 전체를 받쳐줌
+  pianoNote(ch.bass, atSec + .03, .30, inS + hoS + exS);
+  pianoPad([ch.bass + 12, ch.tones[2]], atSec + .1, inS + hoS + exS);
+  // 들숨: 분산화음이 부드럽게 올라감
+  for (let k = 0; k < 4; k++) {
+    pianoNote(ch.tones[k], atSec + (inS * (k + .25) / 4.4) + jit(), .16 + k * .035 + vj(), 2.8);
+  }
+  // 멈춤: 색채음 하나가 머묾
+  pianoNote(ch.color, atSec + inS + .12 + jit(), .20 + vj(), 3.2);
+  // 날숨: 선율이 천천히 내려옴 (뒤로 갈수록 느리고 여리게)
+  const down = [ch.tones[3], ch.color - 2, ch.tones[2], ch.tones[1], ch.tones[0]];
+  const frac = [.06, .24, .45, .68, .9];
+  for (let k = 0; k < down.length; k++) {
+    pianoNote(down[k], atSec + inS + hoS + exS * frac[k] + jit(), .22 - k * .032 + vj(), 3.4);
+  }
+}
+function pianoStart() {
+  pnoGain = sndCtx.createGain();
+  pnoGain.gain.value = .9;
+  pnoGain.connect(sndCtx.destination);
+  pnoBar = 0;
+  // performance.now 기준 t0(호흡 시계)를 오디오 시계로 변환해 사이클마다 예약
+  pnoNextAt = 0;
+  const tick = () => {
+    if (sndMode !== 3 || !sndCtx) return;
+    const nowP = performance.now();
+    const off = sndCtx.currentTime - nowP / 1000;  // perf(ms) → audio(s)
+    if (!pnoNextAt) {
+      // 다음 사이클 경계부터 합류 (0.4초 이상 여유가 없으면 그 다음 경계)
+      let n = t0 + Math.ceil((nowP - t0) / CYCLE) * CYCLE;
+      if (n - nowP < 400) n += CYCLE;
+      pnoNextAt = n;
+    }
+    if (pnoNextAt - nowP < 1500) {
+      pianoCycle(off + pnoNextAt / 1000);
+      pnoNextAt += CYCLE;
+    }
+  };
+  tick();
+  pnoTimer = setInterval(tick, 200);
+  sndNodes.push({ stop() { clearInterval(pnoTimer); }, disconnect() { try { pnoGain.disconnect(); } catch (_) {} } });
 }
 
 /* ── 계절 효과 (기본 꺼짐) ── */
@@ -1858,7 +1973,8 @@ slideBtn.addEventListener('click', () => {
 /* ── 메뉴 ── */
 function refreshMenu() {
   sBreath.textContent = BREATHS[breathIdx].name + ' ' + BREATHS[breathIdx].label;
-  sSound.textContent = ['꺼짐', '빗소리', '파도'][sndMode];
+  sSound.textContent = ['꺼짐', '빗소리', '파도', '피아노'][sndMode];
+  sMySnd.textContent = mySnd.id ? '재생 중' : '녹음·파일';
   sSeason.textContent = seasonInfo().name + (seasonOn ? ' · 켜짐' : ' · 꺼짐');
   sAcc.textContent = ACCS[accIdx];
   if (sPage) sPage.textContent = (pageIdx + 1) + '번째 장';
@@ -1875,11 +1991,160 @@ $('mPet').addEventListener('click', () => { closeMenu(); petRender(); petOv.clas
 $('mNewPage').addEventListener('click', () => { closeMenu(); nextPage(); });
 $('mBgSet').addEventListener('click', () => { closeMenu(); bgInput.click(); });
 mBgClear.addEventListener('click', () => { setBg(null); scheduleSave(); refreshMenu(); });
-$('mSound').addEventListener('click', () => { sndMode = (sndMode + 1) % 3; soundApply(); refreshMenu(); });
+$('mSound').addEventListener('click', () => {
+  sndMode = (sndMode + 1) % 4;
+  if (sndMode && mySnd.id) stopMySound();  // 내 소리와 동시 재생 방지
+  soundApply();
+  refreshMenu();
+});
 $('mSeason').addEventListener('click', () => { seasonOn = !seasonOn; applySeason(); refreshMenu(); scheduleSave(); });
 $('mAcc').addEventListener('click', () => { accIdx = (accIdx + 1) % ACCS.length; applyAcc(); refreshMenu(); scheduleSave(); });
 $('mCheer').addEventListener('click', () => { closeMenu(); renderCheerList(); cheerOv.classList.remove('hidden'); });
 $('mQuiet').addEventListener('click', () => { closeMenu(); setQuiet(true); });
+
+/* ── 내 소리: 직접 녹음하거나 파일을 올려 재생 (기기 안에만 저장) ── */
+function stopMySound() {
+  if (mySnd.el) { try { mySnd.el.pause(); } catch (_) {} }
+  if (mySnd.url) { try { URL.revokeObjectURL(mySnd.url); } catch (_) {} }
+  if (mySnd.gain) { try { mySnd.gain.disconnect(); } catch (_) {} }
+  mySnd = { id: 0, el: null, gain: null, url: null };
+}
+function playMySound(rec) {
+  stopMySound();
+  if (sndMode) { sndMode = 0; soundStop(); }
+  try {
+    if (!sndCtx) sndCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (sndCtx.resume) sndCtx.resume();
+    const url = URL.createObjectURL(rec.blob);
+    const el = new Audio(url);
+    el.loop = true;
+    const src = sndCtx.createMediaElementSource(el);
+    const gain = sndCtx.createGain();
+    gain.gain.value = .9;
+    src.connect(gain);
+    gain.connect(sndCtx.destination);
+    el.play().catch(() => { sndStatus.textContent = '재생에 실패했어요. 다른 파일로 시도해 보세요'; });
+    mySnd = { id: rec.id, el, gain, url };
+  } catch (_) {
+    sndStatus.textContent = '재생에 실패했어요';
+    mySnd = { id: 0, el: null, gain: null, url: null };
+  }
+  refreshMenu();
+}
+async function renderSounds() {
+  mySndList.innerHTML = '';
+  let recs = [];
+  try { recs = (await dbAll('sounds')).sort((a, b) => b.ts - a.ts); } catch (_) {}
+  if (!recs.length) {
+    const p = document.createElement('div');
+    p.className = 'small';
+    p.style.padding = '10px 0';
+    p.textContent = '아직 소리가 없어요 — 아롱이 숨소리부터 담아볼까요?';
+    mySndList.appendChild(p);
+    return;
+  }
+  for (const rec of recs) {
+    const row = document.createElement('div');
+    row.className = 'cheerRow';
+    const sp = document.createElement('span');
+    sp.textContent = rec.name || '이름 없는 소리';
+    const bPlay = document.createElement('button');
+    bPlay.textContent = (mySnd.id === rec.id) ? '정지' : '재생';
+    bPlay.addEventListener('click', () => {
+      if (mySnd.id === rec.id) stopMySound();
+      else playMySound(rec);
+      renderSounds();
+    });
+    const bDel = document.createElement('button');
+    bDel.textContent = '삭제';
+    bDel.addEventListener('click', async () => {
+      if (!bDel.dataset.armed) {
+        bDel.dataset.armed = '1';
+        bDel.textContent = '한 번 더';
+        setTimeout(() => { delete bDel.dataset.armed; bDel.textContent = '삭제'; }, 2500);
+        return;
+      }
+      if (mySnd.id === rec.id) stopMySound();
+      try { await dbDel(rec.id, 'sounds'); } catch (_) {}
+      renderSounds();
+      refreshMenu();
+    });
+    row.appendChild(sp);
+    row.appendChild(bPlay);
+    row.appendChild(bDel);
+    mySndList.appendChild(row);
+  }
+}
+let recMR = null, recT0 = 0, recTick = 0;
+function recUiReset() {
+  clearInterval(recTick);
+  recTick = 0;
+  recBtn.textContent = '🎙 녹음하기';
+}
+async function startRec() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    recMR = new MediaRecorder(stream);
+    recMR.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    recMR.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      recUiReset();
+      const blob = new Blob(chunks, { type: recMR.mimeType || 'audio/mp4' });
+      recMR = null;
+      if (blob.size < 2000) { sndStatus.textContent = '녹음이 너무 짧았어요'; return; }
+      const d = new Date(), z = n => String(n).padStart(2, '0');
+      try {
+        await dbAdd({ ts: Date.now(), name: '녹음 ' + (d.getMonth() + 1) + '월' + d.getDate() + '일 ' + z(d.getHours()) + ':' + z(d.getMinutes()), blob }, 'sounds');
+        sndStatus.textContent = '녹음을 담아뒀어요';
+        renderSounds();
+      } catch (_) { sndStatus.textContent = '저장에 실패했어요'; }
+    };
+    recMR.start();
+    recT0 = Date.now();
+    sndStatus.textContent = '';
+    recTick = setInterval(() => {
+      const s = Math.floor((Date.now() - recT0) / 1000);
+      recBtn.textContent = '⏹ 멈추기 ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      if (s >= 180) stopRec();  // 최대 3분
+    }, 400);
+  } catch (_) {
+    sndStatus.textContent = '마이크를 허용해야 녹음할 수 있어요';
+  }
+}
+function stopRec() {
+  if (recMR && recMR.state !== 'inactive') { try { recMR.stop(); } catch (_) { recUiReset(); } }
+  else recUiReset();
+}
+recBtn.addEventListener('click', () => { if (recMR) stopRec(); else startRec(); });
+sndFileBtn.addEventListener('click', () => sndInput.click());
+sndInput.addEventListener('change', async () => {
+  const f = sndInput.files && sndInput.files[0];
+  sndInput.value = '';
+  if (!f) return;
+  if (f.size > 20 * 1024 * 1024) { sndStatus.textContent = '20MB 이하 파일만 올릴 수 있어요'; return; }
+  try {
+    await dbAdd({ ts: Date.now(), name: (f.name || '올린 소리').replace(/\.[^.]+$/, '').slice(0, 30), blob: f }, 'sounds');
+    sndStatus.textContent = '소리를 담아뒀어요';
+    renderSounds();
+  } catch (_) { sndStatus.textContent = '저장에 실패했어요'; }
+});
+function refreshSndBreathBtn() {
+  sndBreathBtn.textContent = '호흡 볼륨: ' + (sndBreathOn ? '켜짐' : '꺼짐');
+}
+sndBreathBtn.addEventListener('click', () => {
+  sndBreathOn = !sndBreathOn;
+  try { localStorage.setItem('mansegumaju.sndBreath', sndBreathOn ? 't' : 'f'); } catch (_) {}
+  refreshSndBreathBtn();
+});
+soundsClose.addEventListener('click', () => { stopRec(); soundsOv.classList.add('hidden'); });
+$('mMySnd').addEventListener('click', () => {
+  closeMenu();
+  sndStatus.textContent = '';
+  refreshSndBreathBtn();
+  renderSounds();
+  soundsOv.classList.remove('hidden');
+});
 
 /* ── 두 손가락 탭 = 되돌리기 ── */
 const tf = new Map();
