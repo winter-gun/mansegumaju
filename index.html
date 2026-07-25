@@ -9,8 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>만세구마쥬키우기</title>
-<!-- 방문 시각·횟수만 집계 (GoatCounter) — 그림·개인정보는 일절 수집 안 함 -->
-<script data-goatcounter="https://mansegumaju.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- 방문 집계는 앱 내부 코드(gcTrackOpen)가 처리 — 오프라인이면 적어뒀다가 나중에 전송 -->
 </head>
 <body>
 <!-- ARTIFACT-START -->
@@ -1961,6 +1960,48 @@ function startPawTimers() {
   setInterval(() => { if (Math.random() < .3) pawWalk(); }, 150000);
 }
 
+/* ── 방문 기록: 열린 시각·횟수만, 오프라인이면 큐에 적어뒀다 나중에 전송 ── */
+const GC_HOST = 'winter-gun.github.io';
+const GC_URL = 'https://mansegumaju.goatcounter.com/count';
+const GC_Q = 'mansegumaju.gcq';
+function gcActive() {
+  try {
+    if (location.hostname !== GC_HOST) return false;  // 배포 주소에서만 집계
+    if (location.hash === '#nocount') localStorage.setItem('mansegumaju.gcskip', 't');
+    return localStorage.getItem('mansegumaju.gcskip') !== 't';
+  } catch (_) { return false; }
+}
+function gcPing(p) {
+  return fetch(GC_URL + '?p=' + encodeURIComponent(p) + '&t=' + encodeURIComponent('만세구마쥬키우기'), { keepalive: true })
+    .then(r => r.ok);
+}
+function gcQueue() { try { return JSON.parse(localStorage.getItem(GC_Q) || '[]'); } catch (_) { return []; } }
+function gcSetQueue(a) { try { localStorage.setItem(GC_Q, JSON.stringify(a.slice(-50))); } catch (_) {} }
+async function gcFlush() {
+  if (!gcActive()) return;
+  let q = gcQueue();
+  while (q.length) {
+    const d = new Date(q[0]);
+    const p = '/늦은기록/' + (d.getMonth() + 1) + '월' + d.getDate() + '일_'
+      + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    let ok = false;
+    try { ok = await gcPing(p); } catch (_) {}
+    if (!ok) break;  // 아직 오프라인이면 다음 기회에
+    q.shift();
+    gcSetQueue(q);
+  }
+}
+let gcSent = false;
+async function gcTrackOpen() {
+  if (gcSent || !gcActive()) return;
+  gcSent = true;
+  let ok = false;
+  try { ok = await gcPing('/열림'); } catch (_) {}
+  if (!ok) { const q = gcQueue(); q.push(Date.now()); gcSetQueue(q); }
+  gcFlush();
+}
+window.addEventListener('online', () => { gcFlush(); });
+
 /* ── 저장 공간 보호: 브라우저에 데이터 보존 요청 ───── */
 try {
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
@@ -2018,6 +2059,7 @@ function unlockSuccess(p) {
   lockOv.classList.add('hidden');
   setTimeout(dismissIntro, 1900);
   startPawTimers();
+  gcTrackOpen();  // 잠금이 풀린 시점 = 실제 사용으로 집계
 }
 async function submitPass() {
   const v = (lockInput.value || '').trim().normalize('NFC');
