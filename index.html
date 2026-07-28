@@ -192,9 +192,47 @@ body{
   box-shadow:0 6px 20px rgba(122,101,79,.18);
 }
 #vidChip.hidden{display:none}
+#sharedChip{
+  position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 140px);transform:translateX(-50%);
+  z-index:7;cursor:pointer;font-family:inherit;
+  background:rgba(255,252,244,.96);border:1px solid rgba(122,101,79,.18);
+  border-radius:999px;padding:11px 20px;font-size:14px;color:#6f6355;
+  box-shadow:0 6px 20px rgba(122,101,79,.18);
+}
+#sharedChip.hidden{display:none}
+#liveChip{
+  position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);right:12px;
+  z-index:5;cursor:pointer;font-family:inherit;
+  background:rgba(255,252,244,.9);border:1px solid rgba(122,101,79,.16);
+  border-radius:999px;padding:7px 14px;font-size:12.5px;color:#8d7f6d;
+  box-shadow:0 4px 14px rgba(122,101,79,.14);
+}
+#liveChip.hidden{display:none}
+/* 우리 일기 달력 */
+#dcal{display:grid;grid-template-columns:repeat(7,44px);gap:6px;justify-content:center}
+.dhead{font-size:12px;color:#b1a390;text-align:center;line-height:20px}
+.dcell{
+  width:44px;height:44px;border-radius:12px;position:relative;cursor:pointer;
+  border:1px solid rgba(122,101,79,.14);background:rgba(255,255,255,.85);
+  color:#6f6355;font-family:inherit;font-size:14px;padding:0;
+}
+.dcell:active{transform:scale(.95)}
+.dcell.today{border-color:#b98aa2;box-shadow:0 0 0 1.5px rgba(185,138,162,.35)}
+.dcell.has::after{
+  content:'';position:absolute;left:50%;bottom:5px;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:#c98da0;
+}
+#diaryThread{display:flex;flex-direction:column;gap:8px;width:min(86vw,420px);max-height:36vh;overflow-y:auto;padding:2px}
+.dnote{
+  background:rgba(255,255,255,.88);border:1px solid rgba(122,101,79,.14);
+  border-radius:14px;padding:10px 14px;text-align:left;font-size:14px;color:#6f6355;
+  white-space:pre-wrap;word-break:break-word;
+}
+.dnote small{display:block;color:#b1a390;font-size:11.5px;margin-bottom:3px}
+.dnote.mine{border-color:rgba(185,138,162,.4)}
 
 /* ── 보관함 ─────────────────────────────────────── */
-#galleryGrid{
+#galleryGrid,#sharedGrid{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
   gap:12px;width:min(92vw,640px);max-height:52vh;overflow-y:auto;padding:4px;
 }
@@ -344,6 +382,8 @@ body{
     <button id="recVidBtn" class="tbtn">🎥 영상으로 저장</button>
   </div>
   <button id="vidChip" class="hidden">🎥 영상이 완성됐어요 · 눌러서 저장</button>
+  <button id="sharedChip" class="hidden">💌 우리 칸에 새 그림이 도착했어요</button>
+  <button id="liveChip" class="hidden">🎨 같이 그리는 중 · 탭하면 끄기</button>
 
   <div id="saveOverlay" class="overlay hidden">
     <div class="photo"><img id="savePhoto" alt="아롱이" draggable="false"></div>
@@ -356,6 +396,7 @@ body{
       <button id="dlBtn" class="tbtn">이미지 저장</button>
       <button id="postBtn" class="tbtn">엽서로</button>
       <button id="shareBtn" class="tbtn" hidden>공유하기</button>
+      <button id="sendBtn" class="tbtn">우리 칸에 보내기</button>
       <button id="backBtn" class="tbtn">돌아가기</button>
     </div>
     <div class="small" id="pressHint" hidden>이미지를 길게 누르면 사진에 저장할 수도 있어요</div>
@@ -369,6 +410,7 @@ body{
     <div class="row">
       <button id="exportBtn" class="tbtn">내보내기</button>
       <button id="importBtn" class="tbtn">가져오기</button>
+      <button id="cloudSyncBtn" class="tbtn">☁ 동기화</button>
       <button id="galleryClose" class="tbtn">닫기</button>
     </div>
     <input type="file" id="importInput" accept=".json,application/json" hidden>
@@ -399,6 +441,9 @@ body{
       <button class="mrow" id="mReplay"><span>그림 다시 보기</span><small>타임랩스</small></button>
       <button class="mrow" id="mGallery"><span>보관함</span><small id="sGallery"></small></button>
       <button class="mrow" id="mPet"><span>아롱이 앨범</span><small></small></button>
+      <button class="mrow" id="mShared"><span>우리 칸</span><small>주고받은 그림</small></button>
+      <button class="mrow" id="mDiary"><span>우리 일기</span><small>달력 · 하루 한 칸</small></button>
+      <button class="mrow" id="mLive"><span>같이 그리기</span><small id="sLive">꺼짐</small></button>
       <button class="mrow" id="mNewPage"><span>새 장 넘기기</span><small id="sPage"></small></button>
       <button class="mrow" id="mBgSet"><span>배경 사진 넣기</span><small>사진 위에 그리기</small></button>
       <button class="mrow" id="mBgClear" hidden><span>배경 사진 빼기</span><small></small></button>
@@ -447,6 +492,51 @@ body{
     <div class="row">
       <button id="cheerAdd" class="tbtn">추가</button>
       <button id="cheerClose" class="tbtn">닫기</button>
+    </div>
+  </div>
+
+  <div id="sharedOv" class="overlay hidden">
+    <div class="big">우리 칸</div>
+    <div class="small">서로에게 보낸 그림이 모이는 곳 · 암호를 아는 우리 둘만 볼 수 있어요</div>
+    <div id="sharedGrid"></div>
+    <div class="small" id="shStatus"></div>
+    <div class="row">
+      <button id="sharedRefresh" class="tbtn">새로고침</button>
+      <button id="sharedClose" class="tbtn">닫기</button>
+    </div>
+  </div>
+
+  <div id="diaryOv" class="overlay hidden">
+    <div class="big">우리 일기</div>
+    <div id="dcalWrap" style="display:flex;flex-direction:column;align-items:center;gap:12px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <button id="dPrev" class="navBtn" aria-label="이전 달">‹</button>
+        <div id="dTitle" style="font-size:16px;font-weight:600;color:#7a6b5a"></div>
+        <button id="dNext" class="navBtn" aria-label="다음 달">›</button>
+      </div>
+      <div id="dcal"></div>
+      <div class="small" id="dcalStatus">점이 있는 날에 일기가 있어요 · 오늘 칸부터 한 줄 남겨보세요</div>
+      <div class="row"><button id="diaryClose" class="tbtn">닫기</button></div>
+    </div>
+    <div id="ddayWrap" style="display:none;flex-direction:column;align-items:center;gap:12px">
+      <div id="dDayTitle" style="font-size:15px;color:#7a6b5a;font-weight:600"></div>
+      <div id="diaryThread"></div>
+      <textarea id="diaryIn" class="cheerIn" maxlength="500" placeholder="오늘 하루, 한 줄이면 충분해요"
+        style="border-radius:16px;height:74px;resize:none;width:min(86vw,420px)"></textarea>
+      <div class="row">
+        <button id="diarySend" class="tbtn">남기기</button>
+        <button id="diaryBack" class="tbtn">달력으로</button>
+      </div>
+      <div class="small" id="dDayStatus"></div>
+    </div>
+  </div>
+
+  <div id="whoOv" class="overlay hidden" style="z-index:15">
+    <div class="big">누가 쓰고 있나요?</div>
+    <div class="small">우리 칸에서 보낸 사람 이름으로 쓰여요 · 처음 한 번만 물어봐요</div>
+    <div class="row">
+      <button class="tbtn whoBtn" data-who="지우" style="font-size:17px;padding:14px 34px">지우</button>
+      <button class="tbtn whoBtn" data-who="건욱" style="font-size:17px;padding:14px 34px">건욱</button>
     </div>
   </div>
 
@@ -523,7 +613,10 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       sndStatus = $('sndStatus'), recBtn = $('recBtn'),
       sndFileBtn = $('sndFileBtn'), sndBreathBtn = $('sndBreathBtn'),
       soundsClose = $('soundsClose'), sndInput = $('sndInput'),
-      sMySnd = $('sMySnd'), recVidBtn = $('recVidBtn'), vidChip = $('vidChip');
+      sMySnd = $('sMySnd'), recVidBtn = $('recVidBtn'), vidChip = $('vidChip'),
+      sendBtn = $('sendBtn'), sharedOv = $('sharedOv'), sharedGrid = $('sharedGrid'),
+      shStatus = $('shStatus'), sharedClose = $('sharedClose'), sharedRefresh = $('sharedRefresh'),
+      sharedChip = $('sharedChip'), liveChip = $('liveChip'), whoOv = $('whoOv'), sLive = $('sLive');
 
 let userPhotos = [];  // 직접 추가한 사진 {id, ts, data} — 이 기기 안에만 저장
 const photoPool = () => PHOTOS.concat(userPhotos.map(p => p.data));
@@ -841,11 +934,13 @@ canvas.addEventListener('pointermove', e => {
 
 function finishCurrent() {
   if (!cur) return;
+  const done = cur;
   if (cur.t === 'p' || cur.t === 'm' || cur.t === 'w') compositeLive();
   cur = null; activeId = null;
   dirtySinceArchive = true;
   refreshUndo();
   scheduleSave();
+  if (liveOn) { try { liveSendStroke(done); } catch (_) {} }
 }
 function endStroke(e) {
   if (e.pointerId !== activeId) return;
@@ -906,15 +1001,23 @@ function cycleBreath() {
 }
 
 function refreshUndo() {
-  undoBtn.classList.toggle('dim', strokes.length === 0);
+  undoBtn.classList.toggle('dim', !strokes.some(st => !st.rm));
 }
-undoBtn.addEventListener('click', () => {
-  if (cur || !strokes.length) return;
-  strokes.pop();
+function doUndo() {
+  /* 상대가 같이 그린 획(rm)은 건너뛰고 내 마지막 획만 되돌린다 */
+  let i = strokes.length - 1;
+  while (i >= 0 && strokes[i].rm) i--;
+  if (i < 0) return false;
+  strokes.splice(i, 1);
   dirtySinceArchive = true;
   redrawAll();
   refreshUndo();
   scheduleSave();
+  return true;
+}
+undoBtn.addEventListener('click', () => {
+  if (cur || !strokes.length) return;
+  doUndo();
 });
 
 /* ── 지우기(전체): 두 번 눌러 확인 ─────────────────── */
@@ -1024,13 +1127,14 @@ replayOv.addEventListener('pointerdown', endReplay);
 /* ── 보관함: 저장한 그림을 획 데이터째 보관, 타임랩스 재생 ── */
 function dbOpen() {
   return new Promise((res, rej) => {
-    const q = indexedDB.open('mansegumaju-db', 4);
+    const q = indexedDB.open('mansegumaju-db', 5);
     q.onupgradeneeded = () => {
       const db = q.result;
       if (!db.objectStoreNames.contains('works')) db.createObjectStore('works', { keyPath: 'id', autoIncrement: true });
       if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
       if (!db.objectStoreNames.contains('state')) db.createObjectStore('state', { keyPath: 'k' });
       if (!db.objectStoreNames.contains('sounds')) db.createObjectStore('sounds', { keyPath: 'id', autoIncrement: true });
+      if (!db.objectStoreNames.contains('outbox')) db.createObjectStore('outbox', { keyPath: 'id', autoIncrement: true });
     };
     q.onsuccess = () => res(q.result);
     q.onerror = () => rej(q.error);
@@ -1116,8 +1220,10 @@ async function archiveCurrent() {
   if (!strokes.length) return;
   let thumb = '';
   try { thumb = await thumbFromCanvas(); } catch (_) {}
-  await dbAdd({ ts: Date.now(), w: vw, h: vh, strokes: JSON.parse(JSON.stringify(strokes)), thumb });
+  const entry = { ts: Date.now(), w: vw, h: vh, strokes: JSON.parse(JSON.stringify(strokes)), thumb };
+  await dbAdd(entry);
   dirtySinceArchive = false;
+  try { cloudBackupWork(entry); } catch (_) {}
 }
 async function loadWork(wk) {
   finishCurrent();
@@ -1177,7 +1283,12 @@ async function openGallery() {
     });
     bs.appendChild(bPlay); bs.appendChild(bEdit);
     const bs2 = document.createElement('div'); bs2.className = 'gbtns'; bs2.style.marginTop = '6px';
-    bs2.appendChild(bDel);
+    const bSend = document.createElement('button'); bSend.className = 'gbtn'; bSend.textContent = '보내기';
+    bSend.dataset.label = '보내기';
+    bSend.addEventListener('click', () => {
+      sendShared({ v: 1, w: wk.w, h: wk.h, strokes: wk.strokes, thumb: wk.thumb || '', msg: '' }, bSend);
+    });
+    bs2.appendChild(bSend); bs2.appendChild(bDel);
     it.appendChild(im); it.appendChild(dt); it.appendChild(bs); it.appendChild(bs2);
     galleryGrid.appendChild(it);
   }
@@ -2090,6 +2201,7 @@ function refreshMenu() {
   sMySnd.textContent = mySnd.id ? '재생 중' : '녹음·파일';
   sSeason.textContent = seasonInfo().name + (seasonOn ? ' · 켜짐' : ' · 꺼짐');
   sAcc.textContent = ACCS[accIdx];
+  if (sLive) sLive.textContent = liveOn ? '켜짐 · 둘이 한 캔버스' : '꺼짐';
   if (sPage) sPage.textContent = (pageIdx + 1) + '번째 장';
   mBgClear.hidden = !curBg;
 }
@@ -2290,13 +2402,7 @@ function tfUp(e) {
   const all = Array.from(tf.values());
   if (all.every(a => a.up)) {
     if (tfArmed && tf.size === 2 && all.every(a => !a.moved && (a.up - a.t) < 450)) {
-      if (strokes.length) {
-        strokes.pop();
-        dirtySinceArchive = true;
-        redrawAll();
-        refreshUndo();
-        scheduleSave();
-      }
+      if (strokes.length) doUndo();
     }
     tf.clear();
     tfArmed = false;
@@ -2509,6 +2615,549 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) resi
 document.addEventListener('gesturestart', e => e.preventDefault());
 resize();
 
+/* ── 우리 칸: 둘만의 클라우드 (Firestore + 종단간 암호화) ─────────
+   방 주소와 데이터 열쇠 모두 잠금 암호에서 유도 — 같은 암호를 아는
+   두 기기만 같은 방을 찾고, 서버에는 암호화된 내용만 올라간다. ── */
+const FB_CFG = {
+  apiKey: 'AIzaSyAOartVAYU_cXHix1Q71qdl09lL23JmQ0I',
+  authDomain: 'mansegumaju.firebaseapp.com',
+  projectId: 'mansegumaju',
+  storageBucket: 'mansegumaju.firebasestorage.app',
+  messagingSenderId: '1066971066042',
+  appId: '1:1066971066042:web:e900739befe8c5d95c5c83'
+};
+let fs = null, fsDb = null, fsLoading = null, cloudK = null;
+let liveOn = false, liveUnsub = null, liveEpoch = 0, liveBeat = 0, liveSeen = null;
+const DEV_ID = (() => {
+  try {
+    let d = localStorage.getItem('mansegumaju.dev');
+    if (!d) {
+      d = Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('mansegumaju.dev', d);
+    }
+    return d;
+  } catch (_) { return 'anon'; }
+})();
+
+function whoAmI() { try { return localStorage.getItem('mansegumaju.who') || ''; } catch (_) { return ''; } }
+let whoWait = null;
+function ensureWho() {
+  const w = whoAmI();
+  if (w) return Promise.resolve(w);
+  whoOv.classList.remove('hidden');
+  return new Promise(res => { whoWait = res; });
+}
+document.querySelectorAll('.whoBtn').forEach(b => b.addEventListener('click', () => {
+  try { localStorage.setItem('mansegumaju.who', b.dataset.who); } catch (_) {}
+  whoOv.classList.add('hidden');
+  if (whoWait) { whoWait(b.dataset.who); whoWait = null; }
+}));
+
+async function cloudKeys() {
+  if (cloudK) return cloudK;
+  let s = null;
+  try { s = localStorage.getItem(VK_KEY); } catch (_) {}
+  if (!s) return null;
+  const raw = b64buf(s);
+  const mix = async label => {
+    const lb = new TextEncoder().encode(label);
+    const buf = new Uint8Array(raw.length + lb.length);
+    buf.set(raw); buf.set(lb, raw.length);
+    return new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
+  };
+  const rid = await mix('mansegumaju-room-v1');
+  const dkb = await mix('mansegumaju-data-v1');
+  const key = await crypto.subtle.importKey('raw', dkb, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  cloudK = { room: Array.from(rid).map(b => b.toString(16).padStart(2, '0')).join(''), key };
+  return cloudK;
+}
+async function fsInit() {
+  if (fsDb) return true;
+  if (!navigator.onLine) return false;
+  if (!fsLoading) {
+    fsLoading = (async () => {
+      const V = 'https://www.gstatic.com/firebasejs/12.16.0/';
+      const mods = await Promise.all([import(V + 'firebase-app.js'), import(V + 'firebase-firestore.js')]);
+      const a = mods[0];
+      fs = mods[1];
+      const app = (a.getApps && a.getApps().length) ? a.getApp() : a.initializeApp(FB_CFG);
+      fsDb = fs.getFirestore(app);
+      return true;
+    })().catch(() => { fsLoading = null; return false; });
+  }
+  return fsLoading;
+}
+async function cloudUp() {
+  if (!(await fsInit())) return false;
+  if (!(await cloudKeys())) return false;
+  return true;
+}
+function roomCol(name) { return fs.collection(fsDb, 'rooms', cloudK.room, name); }
+function gzOk() { return typeof CompressionStream === 'function' && typeof DecompressionStream === 'function'; }
+async function pipeBytes(bytes, Trans, kind) {
+  const st = new Blob([bytes]).stream().pipeThrough(new Trans(kind));
+  return new Uint8Array(await new Response(st).arrayBuffer());
+}
+async function encPack(obj) {
+  const k = await cloudKeys();
+  if (!k) throw new Error('nokey');
+  let bytes = new TextEncoder().encode(JSON.stringify(obj));
+  let z = 0;
+  if (gzOk()) { try { bytes = await pipeBytes(bytes, CompressionStream, 'gzip'); z = 1; } catch (_) {} }
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, k.key, bytes));
+  return { iv: bufB64(iv), d: bufB64(ct), z };
+}
+async function decPack(p) {
+  const k = await cloudKeys();
+  if (!k || !p || !p.d) throw new Error('bad');
+  let bytes = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64buf(p.iv) }, k.key, b64buf(p.d)));
+  if (p.z) bytes = await pipeBytes(bytes, DecompressionStream, 'gzip');
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function cloudCue(t) {
+  lastPhase = -1;
+  clearTimeout(cueTimer);
+  cue.textContent = t;
+  cue.style.opacity = 1;
+  breathHoldUntil = performance.now() + 2400;
+}
+/* 클라우드 호출은 절대 UI를 붙잡지 않는다 — 응답이 늦으면 끊고 보낼함으로 */
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((res, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+}
+function cloudUpQuick(ms) { return withTimeout(cloudUp(), ms || 15000).catch(() => false); }
+
+/* 보내기: 공유 칸에 그림 올리기 (오프라인이면 보낼함에 담아뒀다 나중에) */
+async function sendShared(payload, btn) {
+  const who = await ensureWho();
+  payload.from = who; payload.dev = DEV_ID; payload.ct = Date.now();
+  if (btn) { btn.disabled = true; btn.textContent = '보내는 중…'; }
+  let state = 'fail';
+  try {
+    const enc = await encPack(payload);
+    if (enc.d.length > 950000) {
+      state = 'big';
+    } else if (await cloudUpQuick()) {
+      await withTimeout(fs.addDoc(roomCol('shared'), { ct: payload.ct, from: who, dev: DEV_ID, enc }), 12000);
+      state = 'ok';
+      try { localStorage.setItem('mansegumaju.sharedSeen', String(payload.ct)); } catch (_) {}
+    } else {
+      await dbAdd({ kind: 'shared', payload, t: Date.now() }, 'outbox');
+      state = 'queued';
+    }
+  } catch (_) {
+    try { await dbAdd({ kind: 'shared', payload, t: Date.now() }, 'outbox'); state = 'queued'; } catch (_) {}
+  }
+  if (btn) {
+    btn.textContent = state === 'ok' ? '보냈어요 💌'
+      : state === 'queued' ? '연결되면 보낼게요 ⏳'
+      : state === 'big' ? '그림이 너무 커요'
+      : '지금은 보낼 수 없어요';
+    setTimeout(() => { btn.textContent = btn.dataset.label || '보내기'; btn.disabled = false; }, 2600);
+  }
+  return state === 'ok';
+}
+sendBtn.dataset.label = '우리 칸에 보내기';
+sendBtn.addEventListener('click', async () => {
+  if (!strokes.length) { sendBtn.textContent = '그림을 먼저 그려주세요'; setTimeout(() => { sendBtn.textContent = sendBtn.dataset.label; }, 2000); return; }
+  const payload = { v: 1, w: vw, h: vh, strokes: JSON.parse(JSON.stringify(strokes)), thumb: '', msg: '' };
+  try { payload.thumb = await thumbFromCanvas(); } catch (_) {}
+  sendShared(payload, sendBtn);
+});
+
+/* 우리 칸 열기 */
+async function openShared() {
+  closeMenu();
+  sharedGrid.innerHTML = '';
+  shStatus.textContent = '불러오는 중…';
+  sharedChip.classList.add('hidden');
+  sharedOv.classList.remove('hidden');
+  if (!(await cloudUpQuick())) {
+    shStatus.textContent = navigator.onLine ? '지금은 우리 칸에 닿을 수 없어요 · 잠시 후 다시 열어보세요' : '인터넷이 연결되면 볼 수 있어요';
+    return;
+  }
+  try {
+    const snap = await withTimeout(fs.getDocs(fs.query(roomCol('shared'), fs.orderBy('ct', 'desc'), fs.limit(60))), 12000);
+    let maxCt = 0, shown = 0;
+    for (const dref of snap.docs) {
+      const x = dref.data();
+      if (x.ct > maxCt) maxCt = x.ct;
+      let d = null;
+      try { d = await decPack(x.enc); } catch (_) { continue; }
+      if (!d || !Array.isArray(d.strokes)) continue;
+      shown++;
+      const it = document.createElement('div'); it.className = 'gitem';
+      const im = document.createElement('img');
+      im.src = d.thumb || ''; im.alt = '우리 칸 그림'; im.draggable = false;
+      const dt = document.createElement('div'); dt.className = 'gdate';
+      dt.textContent = (x.from || '?') + ' · ' + fmtDate(x.ct || Date.now());
+      const bs = document.createElement('div'); bs.className = 'gbtns';
+      const bPlay = document.createElement('button'); bPlay.className = 'gbtn'; bPlay.textContent = '다시 보기';
+      bPlay.addEventListener('click', () => {
+        sharedOv.classList.add('hidden');
+        startReplay(fitStrokes(d.strokes, d.w, d.h));
+      });
+      const bEdit = document.createElement('button'); bEdit.className = 'gbtn'; bEdit.textContent = '이어 그리기';
+      bEdit.addEventListener('click', async () => {
+        await loadWork({ strokes: d.strokes, w: d.w, h: d.h });
+        sharedOv.classList.add('hidden');
+      });
+      const bDel = document.createElement('button'); bDel.className = 'gbtn warn'; bDel.textContent = '지우기';
+      bDel.addEventListener('click', async () => {
+        if (bDel.dataset.armed) {
+          try { await fs.deleteDoc(dref.ref); } catch (_) {}
+          it.remove();
+        } else {
+          bDel.dataset.armed = '1';
+          bDel.textContent = '한 번 더';
+          setTimeout(() => { delete bDel.dataset.armed; bDel.textContent = '지우기'; }, 2500);
+        }
+      });
+      bs.appendChild(bPlay); bs.appendChild(bEdit);
+      const bs2 = document.createElement('div'); bs2.className = 'gbtns'; bs2.style.marginTop = '6px';
+      bs2.appendChild(bDel);
+      it.appendChild(im); it.appendChild(dt); it.appendChild(bs); it.appendChild(bs2);
+      sharedGrid.appendChild(it);
+    }
+    if (maxCt) { try { localStorage.setItem('mansegumaju.sharedSeen', String(maxCt)); } catch (_) {} }
+    shStatus.textContent = shown ? '' : '아직 비어 있어요 · 저장 화면의 "우리 칸에 보내기"로 첫 그림을 보내보세요';
+  } catch (_) {
+    shStatus.textContent = '지금은 불러올 수 없어요 · 잠시 후 다시 시도해 주세요';
+  }
+}
+sharedClose.addEventListener('click', () => sharedOv.classList.add('hidden'));
+sharedRefresh.addEventListener('click', openShared);
+sharedChip.addEventListener('click', () => {
+  sharedChip.classList.add('hidden');
+  if (sharedChip.dataset.t === 'diary') openDiary(); else openShared();
+});
+$('mShared').addEventListener('click', openShared);
+
+/* 새 소식 확인 (열 때 한 번, 조용히) — 그림과 일기 모두 */
+async function checkShared() {
+  try {
+    const snap = await withTimeout(fs.getDocs(fs.query(roomCol('shared'), fs.orderBy('ct', 'desc'), fs.limit(5))), 10000);
+    const seen = +localStorage.getItem('mansegumaju.sharedSeen') || 0;
+    let news = 0;
+    snap.forEach(dref => { const x = dref.data(); if (x.ct > seen && x.dev !== DEV_ID) news++; });
+    let dnews = 0;
+    try {
+      const ds = await withTimeout(fs.getDocs(fs.query(roomCol('diary'), fs.orderBy('ct', 'desc'), fs.limit(3))), 10000);
+      const dseen = +localStorage.getItem('mansegumaju.diarySeen') || 0;
+      ds.forEach(dref => { const x = dref.data(); if (x.ct > dseen && x.dev !== DEV_ID) dnews++; });
+    } catch (_) {}
+    if (news || dnews) {
+      sharedChip.dataset.t = news ? 'shared' : 'diary';
+      sharedChip.textContent = news && dnews ? '💌 새 그림과 일기가 도착했어요'
+        : news ? '💌 우리 칸에 새 그림이 도착했어요'
+        : '✎ 우리 일기에 새 글이 있어요';
+      sharedChip.classList.remove('hidden');
+    }
+  } catch (_) {}
+}
+
+/* 보관함 클라우드 백업/동기화 */
+async function cloudBackupWork(wk) {
+  try {
+    if (!(await cloudUpQuick())) return;
+    const enc = await encPack({ v: 1, ts: wk.ts, w: wk.w, h: wk.h, strokes: wk.strokes, thumb: wk.thumb || '' });
+    if (enc.d.length > 950000) return;
+    await withTimeout(fs.setDoc(fs.doc(fsDb, 'rooms', cloudK.room, 'backup', DEV_ID + '_' + wk.ts), { ts: wk.ts, dev: DEV_ID, enc }), 15000);
+  } catch (_) {}
+}
+async function cloudSyncWorks() {
+  gStatus.textContent = '클라우드와 맞춰보는 중…';
+  if (!(await cloudUpQuick())) {
+    gStatus.textContent = navigator.onLine ? '지금은 클라우드에 닿을 수 없어요' : '인터넷이 연결되면 동기화할 수 있어요';
+    return;
+  }
+  try {
+    const works = await dbAll('works');
+    const have = new Set(works.map(w => w.ts));
+    const snap = await withTimeout(fs.getDocs(roomCol('backup')), 20000);
+    const cloudTs = new Set();
+    let pulled = 0;
+    for (const dref of snap.docs) {
+      const x = dref.data();
+      cloudTs.add(x.ts);
+      if (have.has(x.ts)) continue;
+      try {
+        const w = await decPack(x.enc);
+        if (w && Array.isArray(w.strokes)) {
+          await dbAdd({ ts: w.ts, w: w.w, h: w.h, strokes: w.strokes, thumb: w.thumb || '' }, 'works');
+          pulled++;
+        }
+      } catch (_) {}
+    }
+    let pushed = 0;
+    for (const w of works) {
+      if (!cloudTs.has(w.ts)) { await cloudBackupWork(w); pushed++; }
+    }
+    if (pulled) await openGallery();
+    gStatus.textContent = '동기화 끝 · 가져온 그림 ' + pulled + '장 · 올린 그림 ' + pushed + '장';
+  } catch (_) {
+    gStatus.textContent = '지금은 동기화할 수 없어요 · 잠시 후 다시 시도해 주세요';
+  }
+}
+$('cloudSyncBtn').addEventListener('click', cloudSyncWorks);
+
+/* 같이 그리기 */
+async function liveToggle() {
+  closeMenu();
+  if (liveOn) { liveStop('같이 그리기를 껐어요'); return; }
+  const who = await ensureWho();
+  if (!(await cloudUpQuick())) {
+    cloudCue(navigator.onLine ? '지금은 켤 수 없어요 · 잠시 후 다시요' : '인터넷이 연결되면 같이 그릴 수 있어요');
+    return;
+  }
+  try {
+    const stRef = fs.doc(fsDb, 'rooms', cloudK.room, 'live', 'state');
+    const curDoc = await withTimeout(fs.getDoc(stRef), 10000);
+    const now = Date.now();
+    let ep = 0;
+    if (curDoc.exists()) {
+      const x = curDoc.data();
+      if (x.epoch && now - x.epoch < 7200000) ep = x.epoch;  // 2시간 내 세션이면 합류
+    }
+    if (!ep) ep = now;
+    const upd = { epoch: ep };
+    upd['seen_' + DEV_ID] = now;
+    upd['name_' + DEV_ID] = who;
+    await withTimeout(fs.setDoc(stRef, upd, { merge: true }), 10000);
+    liveEpoch = ep;
+    liveSeen = new Set();
+    liveOn = true;
+    liveUnsub = fs.onSnapshot(fs.query(roomCol('liveStrokes'), fs.where('e', '==', ep)), snap => {
+      snap.docChanges().forEach(ch => {
+        if (ch.type !== 'added') return;
+        const x = ch.doc.data();
+        if (x.dev === DEV_ID || liveSeen.has(ch.doc.id)) return;
+        liveSeen.add(ch.doc.id);
+        decPack(x.enc).then(d => {
+          if (!d || !d.st || !Array.isArray(d.st.pts)) return;
+          const st = fitStrokes([d.st], d.w, d.h)[0];
+          st.rm = 1;
+          strokes.push(st);
+          replay(mctx, st);
+          refreshUndo();
+          scheduleSave();
+        }).catch(() => {});
+      });
+    }, () => {});
+    liveBeat = setInterval(() => {
+      const hb = {}; hb['seen_' + DEV_ID] = Date.now();
+      fs.setDoc(stRef, hb, { merge: true }).catch(() => {});
+    }, 25000);
+    liveChip.classList.remove('hidden');
+    cloudCue('이제 같은 캔버스예요 · 서로의 선이 나타나요');
+  } catch (_) {
+    cloudCue('지금은 켤 수 없어요 · 잠시 후 다시요');
+  }
+}
+function liveStop(msg) {
+  liveOn = false;
+  if (liveUnsub) { try { liveUnsub(); } catch (_) {} liveUnsub = null; }
+  clearInterval(liveBeat);
+  liveChip.classList.add('hidden');
+  if (msg) cloudCue(msg);
+}
+async function liveSendStroke(st) {
+  try {
+    if (!liveOn || !fsDb || !st || !Array.isArray(st.pts)) return;
+    const enc = await encPack({ st, w: vw, h: vh });
+    if (enc.d.length > 500000) return;
+    await fs.addDoc(roomCol('liveStrokes'), { e: liveEpoch, dev: DEV_ID, t: Date.now(), enc });
+  } catch (_) {}
+}
+liveChip.addEventListener('click', () => liveStop('같이 그리기를 껐어요'));
+$('mLive').addEventListener('click', liveToggle);
+
+/* 우리 일기: 달력을 눌러 그 날의 칸을 열고, 서로 이어 적는 교환일기 (텍스트만·누적 보관) */
+const diaryOv = $('diaryOv'), dcal = $('dcal'), dTitle = $('dTitle'),
+      dcalWrap = $('dcalWrap'), ddayWrap = $('ddayWrap'),
+      dDayTitle = $('dDayTitle'), diaryThread = $('diaryThread'),
+      diaryIn = $('diaryIn'), dDayStatus = $('dDayStatus'), dcalStatus = $('dcalStatus');
+let dY = 0, dM = 0, dSelKey = '';
+function dPad(n) { return String(n).padStart(2, '0'); }
+function dMonthKey(y, m) { return y + '-' + dPad(m + 1); }
+async function renderDcal() {
+  dTitle.textContent = dY + '년 ' + (dM + 1) + '월';
+  dcal.innerHTML = '';
+  for (const h of ['일', '월', '화', '수', '목', '금', '토']) {
+    const e = document.createElement('div'); e.className = 'dhead'; e.textContent = h; dcal.appendChild(e);
+  }
+  const firstDow = new Date(dY, dM, 1).getDay();
+  const days = new Date(dY, dM + 1, 0).getDate();
+  for (let i = 0; i < firstDow; i++) dcal.appendChild(document.createElement('div'));
+  const today = new Date();
+  const cells = [];
+  for (let d = 1; d <= days; d++) {
+    const b = document.createElement('button');
+    b.className = 'dcell';
+    b.textContent = d;
+    if (dY === today.getFullYear() && dM === today.getMonth() && d === today.getDate()) b.classList.add('today');
+    const key = dMonthKey(dY, dM) + '-' + dPad(d);
+    b.addEventListener('click', () => openDiaryDay(key));
+    dcal.appendChild(b);
+    cells.push(b);
+  }
+  dcalStatus.textContent = '점이 있는 날에 일기가 있어요 · 오늘 칸부터 한 줄 남겨보세요';
+  try {
+    if (await cloudUpQuick()) {
+      const s = await withTimeout(fs.getDoc(fs.doc(fsDb, 'rooms', cloudK.room, 'diaryIdx', dMonthKey(dY, dM))), 10000);
+      if (s.exists()) {
+        const marks = s.data();
+        for (let d = 1; d <= days; d++) if (marks['d' + dPad(d)]) cells[d - 1].classList.add('has');
+      }
+    } else if (!navigator.onLine) {
+      dcalStatus.textContent = '지금은 인터넷이 없어요 · 그래도 쓸 수 있고, 연결되면 올라가요';
+    }
+  } catch (_) {}
+}
+async function openDiary() {
+  closeMenu();
+  const n = new Date();
+  dY = n.getFullYear(); dM = n.getMonth();
+  dcalWrap.style.display = 'flex';
+  ddayWrap.style.display = 'none';
+  diaryOv.classList.remove('hidden');
+  sharedChip.classList.add('hidden');
+  try { localStorage.setItem('mansegumaju.diarySeen', String(Date.now())); } catch (_) {}
+  renderDcal();
+}
+async function openDiaryDay(key) {
+  dSelKey = key;
+  const p = key.split('-');
+  dDayTitle.textContent = (+p[1]) + '월 ' + (+p[2]) + '일의 일기';
+  dcalWrap.style.display = 'none';
+  ddayWrap.style.display = 'flex';
+  diaryThread.innerHTML = '<div class="small">불러오는 중…</div>';
+  dDayStatus.textContent = '';
+  if (!(await cloudUpQuick())) {
+    diaryThread.innerHTML = '';
+    dDayStatus.textContent = navigator.onLine ? '지금은 불러올 수 없어요 · 써두면 나중에 올라가요' : '인터넷이 없어도 써둘 수 있어요 · 연결되면 올라가요';
+    return;
+  }
+  try {
+    const snap = await withTimeout(fs.getDocs(fs.query(roomCol('diary'), fs.where('day', '==', key))), 12000);
+    const rows = [];
+    for (const dref of snap.docs) {
+      const x = dref.data();
+      let d = null;
+      try { d = await decPack(x.enc); } catch (_) { continue; }
+      if (!d || typeof d.text !== 'string') continue;
+      rows.push({ ct: x.ct || 0, from: x.from || '?', dev: x.dev, text: d.text });
+    }
+    rows.sort((a, b) => a.ct - b.ct);
+    diaryThread.innerHTML = '';
+    if (!rows.length) {
+      const e = document.createElement('div');
+      e.className = 'small';
+      e.style.padding = '12px 0';
+      e.textContent = '아직 빈 칸이에요 · 첫 줄을 남겨보세요';
+      diaryThread.appendChild(e);
+    }
+    for (const r of rows) {
+      const e = document.createElement('div');
+      e.className = 'dnote' + (r.dev === DEV_ID ? ' mine' : '');
+      const s = document.createElement('small');
+      s.textContent = r.from + ' · ' + fmtDate(r.ct);
+      e.appendChild(s);
+      e.appendChild(document.createTextNode(r.text));
+      diaryThread.appendChild(e);
+    }
+    diaryThread.scrollTop = diaryThread.scrollHeight;
+  } catch (_) {
+    diaryThread.innerHTML = '';
+    dDayStatus.textContent = '지금은 불러올 수 없어요 · 잠시 후 다시요';
+  }
+}
+async function sendDiary() {
+  const text = (diaryIn.value || '').trim();
+  if (!text || !dSelKey) return;
+  const who = await ensureWho();
+  const btn = $('diarySend');
+  btn.disabled = true; btn.textContent = '남기는 중…';
+  const payload = { day: dSelKey, text, from: who, dev: DEV_ID, ct: Date.now() };
+  let state = 'fail';
+  try {
+    if (await cloudUpQuick()) {
+      const enc = await encPack({ text });
+      await withTimeout(fs.addDoc(roomCol('diary'), { day: dSelKey, ct: payload.ct, from: who, dev: DEV_ID, enc }), 12000);
+      const f = {}; f['d' + dSelKey.slice(8)] = true;
+      withTimeout(fs.setDoc(fs.doc(fsDb, 'rooms', cloudK.room, 'diaryIdx', dSelKey.slice(0, 7)), f, { merge: true }), 10000).catch(() => {});
+      state = 'ok';
+    } else {
+      await dbAdd({ kind: 'diary', payload, t: Date.now() }, 'outbox');
+      state = 'queued';
+    }
+  } catch (_) {
+    try { await dbAdd({ kind: 'diary', payload, t: Date.now() }, 'outbox'); state = 'queued'; } catch (_) {}
+  }
+  btn.textContent = state === 'ok' ? '남겼어요 ✎' : state === 'queued' ? '연결되면 올라가요 ⏳' : '지금은 남길 수 없어요';
+  if (state === 'ok') { diaryIn.value = ''; openDiaryDay(dSelKey); }
+  else if (state === 'queued') diaryIn.value = '';
+  setTimeout(() => { btn.textContent = '남기기'; btn.disabled = false; }, 2200);
+}
+$('mDiary').addEventListener('click', openDiary);
+$('diaryClose').addEventListener('click', () => diaryOv.classList.add('hidden'));
+$('diaryBack').addEventListener('click', () => { ddayWrap.style.display = 'none'; dcalWrap.style.display = 'flex'; renderDcal(); });
+$('diarySend').addEventListener('click', sendDiary);
+$('dPrev').addEventListener('click', () => { dM--; if (dM < 0) { dM = 11; dY--; } renderDcal(); });
+$('dNext').addEventListener('click', () => { dM++; if (dM > 11) { dM = 0; dY++; } renderDcal(); });
+
+/* 보낼함 비우기 + 잠금 해제 후 조용한 클라우드 루틴 */
+async function flushOutbox() {
+  try {
+    const items = await dbAll('outbox');
+    if (!items.length || !(await cloudUpQuick())) return;
+    for (const it of items) {
+      try {
+        if (it.kind === 'shared' && it.payload) {
+          const enc = await encPack(it.payload);
+          if (enc.d.length <= 950000) {
+            await withTimeout(fs.addDoc(roomCol('shared'), {
+              ct: it.payload.ct || Date.now(),
+              from: it.payload.from || whoAmI() || '?',
+              dev: it.payload.dev || DEV_ID, enc
+            }), 15000);
+          }
+        } else if (it.kind === 'diary' && it.payload && it.payload.day) {
+          const enc = await encPack({ text: it.payload.text || '' });
+          await withTimeout(fs.addDoc(roomCol('diary'), {
+            day: it.payload.day,
+            ct: it.payload.ct || Date.now(),
+            from: it.payload.from || whoAmI() || '?',
+            dev: it.payload.dev || DEV_ID, enc
+          }), 15000);
+          const f = {}; f['d' + it.payload.day.slice(8)] = true;
+          await withTimeout(fs.setDoc(fs.doc(fsDb, 'rooms', cloudK.room, 'diaryIdx', it.payload.day.slice(0, 7)), f, { merge: true }), 10000).catch(() => {});
+        }
+        await dbDel(it.id, 'outbox');
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+window.addEventListener('online', () => setTimeout(flushOutbox, 1500));
+function cloudAfterUnlock() {
+  setTimeout(async () => {
+    try {
+      if (!navigator.onLine) return;
+      if (!(await cloudUpQuick())) return;
+      await flushOutbox();
+      await checkShared();
+      // 놓친 보관함 그림 조용히 올리기 (같은 그림은 같은 자리에 덮어써서 안전)
+      const last = +localStorage.getItem('mansegumaju.lastPush') || 0;
+      const works = (await dbAll('works')).filter(w => w.ts > last);
+      for (const w of works) await cloudBackupWork(w);
+      if (works.length) {
+        localStorage.setItem('mansegumaju.lastPush', String(Math.max.apply(null, works.map(w => w.ts))));
+      }
+    } catch (_) {}
+  }, 2500);
+}
+
 /* ── 잠금 해제: 사진·문구는 암호(VAULT)로 잠겨 있음 ── */
 const VK_KEY = 'mansegumaju.vk';
 function b64buf(s) {
@@ -2543,6 +3192,7 @@ function unlockSuccess(p) {
   setTimeout(dismissIntro, 1900);
   startPawTimers();
   gcTrackOpen();  // 잠금이 풀린 시점 = 실제 사용으로 집계
+  try { cloudAfterUnlock(); } catch (_) {}
 }
 async function submitPass() {
   const v = (lockInput.value || '').trim().normalize('NFC');
