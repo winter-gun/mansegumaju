@@ -175,7 +175,7 @@ body{
 /* ── 리플레이 안내 칩 ─────────────────────────────── */
 #replayOv{
   position:absolute;inset:0;z-index:6;
-  display:flex;justify-content:center;align-items:flex-start;
+  display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:10px;
   padding-top:calc(env(safe-area-inset-top,0px) + 18px);
 }
 #replayOv.hidden{display:none}
@@ -184,6 +184,14 @@ body{
   border-radius:999px;padding:9px 18px;font-size:13px;color:#8d7f6d;
   box-shadow:0 6px 20px rgba(122,101,79,.15);
 }
+#vidChip{
+  position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 88px);transform:translateX(-50%);
+  z-index:7;cursor:pointer;font-family:inherit;
+  background:rgba(255,252,244,.96);border:1px solid rgba(122,101,79,.18);
+  border-radius:999px;padding:11px 20px;font-size:14px;color:#6f6355;
+  box-shadow:0 6px 20px rgba(122,101,79,.18);
+}
+#vidChip.hidden{display:none}
 
 /* ── 보관함 ─────────────────────────────────────── */
 #galleryGrid{
@@ -333,7 +341,9 @@ body{
 
   <div id="replayOv" class="hidden">
     <div id="replayChip">그렸던 순서대로 다시 보는 중 · 탭하면 바로 끝나요</div>
+    <button id="recVidBtn" class="tbtn">🎥 영상으로 저장</button>
   </div>
+  <button id="vidChip" class="hidden">🎥 영상이 완성됐어요 · 눌러서 저장</button>
 
   <div id="saveOverlay" class="overlay hidden">
     <div class="photo"><img id="savePhoto" alt="아롱이" draggable="false"></div>
@@ -513,7 +523,7 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       sndStatus = $('sndStatus'), recBtn = $('recBtn'),
       sndFileBtn = $('sndFileBtn'), sndBreathBtn = $('sndBreathBtn'),
       soundsClose = $('soundsClose'), sndInput = $('sndInput'),
-      sMySnd = $('sMySnd');
+      sMySnd = $('sMySnd'), recVidBtn = $('recVidBtn'), vidChip = $('vidChip');
 
 let userPhotos = [];  // 직접 추가한 사진 {id, ts, data} — 이 기기 안에만 저장
 const photoPool = () => PHOTOS.concat(userPhotos.map(p => p.data));
@@ -592,6 +602,9 @@ let curBg = null, bgImgEl = null;
 /* 스탬프 모양 / 계절 / 꾸미기 / 소리 상태 */
 const STAMP_SHAPES = ['paw', 'heart', 'star', 'cloud', 'guma'];
 let stampShape = 'paw';
+const PEN_STYLES = ['p', 'pc', 'cr'];  // 부드러운 펜 / 연필 / 크레용
+let penStyle = 'p';
+let lastReplayList = null;
 let seasonOn = false;
 let accIdx = 0;
 const ACCS = ['없음', '밀짚모자', '목도리', '리본'];
@@ -704,14 +717,18 @@ function drawErase(c, st) {
   if (st.pts.length === 1) {
     c.beginPath(); c.arc(st.pts[0].x, st.pts[0].y, st.w / 2, 0, Math.PI * 2); c.fill();
   } else {
-    buildPath(c, st.pts); c.stroke();
+    /* 라이브 지우개·리플레이와 동일한 직선 세그먼트 — 스무딩 곡선을 쓰면 지움 경계가 재현되지 않음 */
+    c.beginPath();
+    c.moveTo(st.pts[0].x, st.pts[0].y);
+    for (let i = 1; i < st.pts.length; i++) c.lineTo(st.pts[i].x, st.pts[i].y);
+    c.stroke();
   }
   c.restore();
 }
 function replay(c, st) {
   if (st.t === 'p') {
-    dot(c, st.pts[0].x, st.pts[0].y, st.pts[0].w, st.c);
-    for (let i = 1; i < st.pts.length; i++) seg(c, st, i);
+    penDot(c, st);
+    for (let i = 1; i < st.pts.length; i++) penSeg(c, st, i);
   } else if (st.t === 'm') {
     drawMarker(c, st);
   } else if (st.t === 'w') {
@@ -760,7 +777,8 @@ canvas.addEventListener('pointerdown', e => {
   if (tool === 'p') {
     const w = penW(e);
     cur = { t: 'p', c: color, pts: [{ x, y, w }] };
-    dot(lctx, x, y, w, color);
+    if (penStyle !== 'p') { cur.ps = penStyle; cur.seed = (Math.random() * 1e9) | 0; }
+    penDot(lctx, cur);
   } else if (tool === 'm') {
     cur = { t: 'm', c: color, w: markerW(), pts: [{ x, y }] };
     drawMarkerLive();
@@ -791,7 +809,7 @@ canvas.addEventListener('pointermove', e => {
       if (Math.hypot(x - prev.x, y - prev.y) < .7) continue;
       const w = prev.w + (penW(ev) - prev.w) * .3;
       cur.pts.push({ x, y, w });
-      seg(lctx, cur, cur.pts.length - 1);
+      penSeg(lctx, cur, cur.pts.length - 1);
     } else if (cur.t === 'm') {
       if (Math.hypot(x - prev.x, y - prev.y) < 1.2) continue;
       cur.pts.push({ x, y });
@@ -857,6 +875,7 @@ function setTool(t) {
 document.querySelectorAll('.tool[data-tool]').forEach(b =>
   b.addEventListener('click', () => {
     if (b.dataset.tool === 's' && tool === 's') { cycleStamp(); return; }  // 스탬프 재선택 = 모양 바꾸기
+    if (b.dataset.tool === 'p' && tool === 'p') { cyclePenStyle(); return; }  // 펜 재선택 = 펜/연필/크레용
     setTool(b.dataset.tool);
   }));
 
@@ -926,8 +945,8 @@ let rp = null;
 
 function renderReplayPoint(st, k) {
   if (st.t === 'p') {
-    if (k === 0) dot(lctx, st.pts[0].x, st.pts[0].y, st.pts[0].w, st.c);
-    else seg(lctx, st, k);
+    if (k === 0) penDot(lctx, st);
+    else penSeg(lctx, st, k);
   } else if (st.t === 'w') {
     if (k === 0) wcStamp(lctx, st.pts[0].x, st.pts[0].y, st.pts[0].r, st.c);
     else wcSegment(lctx, st, k);
@@ -968,13 +987,15 @@ function stepReplay() {
     lctx.clearRect(0, 0, vw, vh);
     drawMarker(lctx, { t: 'm', c: cs.c, w: cs.w, pts: cs.pts.slice(0, rp.j) });
   }
-  if (rp.i >= rp.list.length) { endReplay(); return; }
+  if (rp.i >= rp.list.length) { rpCompleted = true; endReplay(); return; }
   rp.raf = requestAnimationFrame(stepReplay);
 }
 
 function startReplay(list) {
   const L = (Array.isArray(list) && list.length) ? list : strokes;
   if (rp || !L.length) return;
+  lastReplayList = L;
+  rpCompleted = false;
   finishCurrent();
   const total = L.reduce((s, st) => s + st.pts.length, 0);
   const dur = Math.min(15000, Math.max(4000, total * 8));
@@ -989,9 +1010,14 @@ function endReplay() {
   if (!rp) return;
   cancelAnimationFrame(rp.raf);
   rp = null;
+  replayOv.classList.add('hidden');
+  if (vRec && rpCompleted) {
+    /* 녹화 완주 직후: 완성 화면을 0.7초 더 담아야 하므로 원상 복귀를 늦춘다 (보관함 그림 리플레이 보호) */
+    setTimeout(() => { if (rp) return; lctx.clearRect(0, 0, vw, vh); redrawAll(); }, 800);
+    return;
+  }
   lctx.clearRect(0, 0, vw, vh);
   redrawAll();
-  replayOv.classList.add('hidden');
 }
 replayOv.addEventListener('pointerdown', endReplay);
 
@@ -1325,6 +1351,7 @@ function prefsSnapshot() {
     acc: accIdx,
     season: seasonOn,
     stamp: stampShape,
+    pen: penStyle,
     customColor: customSwatch.hidden ? null : customSwatch.dataset.color
   };
 }
@@ -1402,6 +1429,7 @@ async function restoreState() {
     }
     const pf = d.prefs || {};
     if (STAMP_SHAPES.indexOf(pf.stamp) >= 0) { stampShape = pf.stamp; refreshStampIcon(); }
+    if (PEN_STYLES.indexOf(pf.pen) >= 0) { penStyle = pf.pen; refreshPenIcon(); }
     if (Number.isInteger(pf.acc) && pf.acc >= 0 && pf.acc < ACCS.length) { accIdx = pf.acc; applyAcc(); }
     if (pf.season) { seasonOn = true; applySeason(); }
     if (pf.customColor) setCustomColor(pf.customColor, false);
@@ -1562,6 +1590,91 @@ postBtn.addEventListener('click', () => {
   };
   i.src = shotUrl;
 });
+
+/* ── 질감 브러시: 연필·크레용 (시드 고정 → 리플레이도 동일 질감) ── */
+function sRand(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+function penDot(c, st) {
+  const p = st.pts[0];
+  if (!st.ps) { dot(c, p.x, p.y, p.w, st.c); return; }
+  const rnd = sRand((st.seed || 1) ^ 0x9e37);
+  c.fillStyle = st.c;
+  const n = st.ps === 'pc' ? 6 : 10;
+  for (let k = 0; k < n; k++) {
+    const a = rnd() * 6.283, rr = rnd() * p.w * .5;
+    c.globalAlpha = .15 + rnd() * .3;
+    c.fillRect(p.x + Math.cos(a) * rr, p.y + Math.sin(a) * rr, st.ps === 'pc' ? 1.1 : 1.7, st.ps === 'pc' ? 1.1 : 1.7);
+  }
+  c.globalAlpha = 1;
+}
+function texSeg(c, st, i) {
+  const p1 = st.pts[i - 1], p2 = st.pts[i];
+  const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  if (dist < .01) return;
+  const rnd = sRand((st.seed || 1) + i * 7919);
+  const w = (p1.w + p2.w) / 2;
+  const nx = -(p2.y - p1.y) / dist, ny = (p2.x - p1.x) / dist;
+  if (st.ps === 'pc') {
+    // 연필: 가는 심선 + 흑연 입자
+    c.strokeStyle = st.c;
+    c.globalAlpha = .5;
+    c.lineWidth = Math.max(.7, w * .32);
+    c.beginPath(); c.moveTo(p1.x, p1.y); c.lineTo(p2.x, p2.y); c.stroke();
+    c.fillStyle = st.c;
+    const n = Math.max(2, Math.floor(dist / 1.2));
+    for (let k = 0; k < n; k++) {
+      const t = rnd(), rr = (rnd() - .5) * w * .95;
+      c.globalAlpha = .1 + rnd() * .28;
+      c.fillRect(p1.x + (p2.x - p1.x) * t + nx * rr, p1.y + (p2.y - p1.y) * t + ny * rr, 1.1, 1.1);
+    }
+  } else {
+    // 크레용: 왁스처럼 겹친 반투명 획 + 굵은 입자
+    c.strokeStyle = st.c;
+    c.lineCap = 'round';
+    for (let k = 0; k < 3; k++) {
+      const ox = (rnd() - .5) * w * .45, oy = (rnd() - .5) * w * .45;
+      c.globalAlpha = .15 + rnd() * .13;
+      c.lineWidth = w * (.4 + rnd() * .4);
+      c.beginPath();
+      c.moveTo(p1.x + ox, p1.y + oy);
+      c.lineTo(p2.x + ox * .6, p2.y + oy * .6);
+      c.stroke();
+    }
+    c.fillStyle = st.c;
+    const n = Math.max(2, Math.floor(dist / 2));
+    for (let k = 0; k < n; k++) {
+      const t = rnd(), rr = (rnd() - .5) * w;
+      c.globalAlpha = .09 + rnd() * .2;
+      c.fillRect(p1.x + (p2.x - p1.x) * t + nx * rr, p1.y + (p2.y - p1.y) * t + ny * rr, 1.7, 1.7);
+    }
+  }
+  c.globalAlpha = 1;
+}
+function penSeg(c, st, i) {
+  if (!st.ps) seg(c, st, i);
+  else texSeg(c, st, i);
+}
+const PEN_ICONS = {
+  p: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3.5 16.5l1-3.5 8.2-8.2a1.4 1.4 0 0 1 2 0l.5.5a1.4 1.4 0 0 1 0 2L7 15.5l-3.5 1z"/></svg>',
+  pc: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3.5 16.5l1-3.5 8.2-8.2a1.4 1.4 0 0 1 2 0l.5.5a1.4 1.4 0 0 1 0 2L7 15.5l-3.5 1z"/><path d="M4.5 13l2.5 2.5" stroke-width="1.1"/><path d="M11.7 5.8l2.5 2.5" stroke-width="1.1"/></svg>',
+  cr: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12.6 3.4l4 4L9 15 4 16l1-5z"/><path d="M5.9 11.4l2.7 2.7M8.4 8.9l2.7 2.7" stroke-width="1" opacity=".55"/></svg>'
+};
+const PEN_NAMES = { p: '부드러운 펜', pc: '연필', cr: '크레용' };
+function refreshPenIcon() {
+  document.getElementById('toolPen').innerHTML = PEN_ICONS[penStyle] || PEN_ICONS.p;
+}
+function cyclePenStyle() {
+  penStyle = PEN_STYLES[(PEN_STYLES.indexOf(penStyle) + 1) % PEN_STYLES.length];
+  refreshPenIcon();
+  lastPhase = -1;
+  clearTimeout(cueTimer);
+  cue.textContent = PEN_NAMES[penStyle];
+  cue.style.opacity = 1;
+  breathHoldUntil = performance.now() + 1400;
+  scheduleSave();
+}
 
 /* ── 스탬프 모양 5종 ── */
 function drawStamp(c, x, y, u, rot, col, shape) {
@@ -2191,6 +2304,111 @@ function tfUp(e) {
 }
 canvas.addEventListener('pointerup', tfUp);
 canvas.addEventListener('pointercancel', e => { tf.delete(e.pointerId); if (!tf.size) tfArmed = false; });
+
+/* ── 타임랩스 영상 저장: 리플레이를 동영상 파일로 ── */
+let vRec = null, vChunks = [], vPump = 0, vBusy = false, rpCompleted = false, vPendBlob = null, vPendExt = '', vPendTimer = 0;
+function pickVidMime() {
+  const list = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  for (const m of list) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (_) {} }
+  return null;
+}
+function vidSupported() {
+  return !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream && pickVidMime());
+}
+async function deliverVideo(blob, ext) {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  const fname = '만세구마쥬_타임랩스_' + d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + '.' + ext;
+  const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if (touch && navigator.canShare) {
+    try {
+      const file = new File([blob], fname, { type: blob.type });
+      if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fname;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+async function startVidCapture(list) {
+  const mime = pickVidMime();
+  if (!mime || vRec || vBusy) return;
+  vBusy = true;
+  let gimg = null;
+  try { gimg = await svgImg(); } catch (_) {}
+  const k = Math.min(1, 1280 / Math.max(canvas.width, canvas.height));
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(canvas.width * k);
+  cv.height = Math.round(canvas.height * k);
+  const c = cv.getContext('2d');
+  vChunks = [];
+  let vTrk = null;
+  try {
+    const stream = cv.captureStream(30);
+    vTrk = stream.getVideoTracks()[0];
+    vRec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4000000 });
+  } catch (_) { vRec = null; vBusy = false; recVidBtn.textContent = '🎥 영상으로 저장'; return; }
+  vBusy = false;
+  const finish = save => {
+    clearTimeout(hardStop);
+    cancelAnimationFrame(vPump);
+    const blob = save ? new Blob(vChunks, { type: mime.split(';')[0] }) : null;
+    vRec = null; vChunks = [];
+    recVidBtn.textContent = '🎥 영상으로 저장';
+    if (blob && blob.size > 5000) offerVideo(blob, mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm');
+  };
+  vRec.ondataavailable = e => { if (e.data && e.data.size) vChunks.push(e.data); };
+  vRec.onstop = () => finish(rpCompleted);
+  vRec.onerror = () => finish(false);
+  const stopRec = () => { try { if (vRec) vRec.stop(); } catch (_) { finish(false); } };
+  const hardStop = setTimeout(() => { rpCompleted = true; stopRec(); }, 25000);
+  const pump = () => {
+    if (!vRec) return;
+    c.fillStyle = '#f7f2e8';
+    c.fillRect(0, 0, cv.width, cv.height);
+    if (gimg) {
+      const r = breathOuter.getBoundingClientRect();
+      c.drawImage(gimg, r.left * dpr * k, r.top * dpr * k, r.width * dpr * k, r.height * dpr * k);
+    }
+    c.drawImage(bgcv, 0, 0, cv.width, cv.height);
+    c.drawImage(canvas, 0, 0, cv.width, cv.height);
+    c.drawImage(live, 0, 0, cv.width, cv.height);
+    if (vTrk && vTrk.requestFrame) { try { vTrk.requestFrame(); } catch (_) {} }
+    vPump = requestAnimationFrame(pump);
+  };
+  try { vRec.start(200); } catch (_) { clearTimeout(hardStop); vRec = null; recVidBtn.textContent = '🎥 영상으로 저장'; return; }
+  pump();
+  startReplay(list);
+  const watch = setInterval(() => {
+    if (rp && vRec) return;
+    clearInterval(watch);
+    if (!vRec) return;
+    if (rpCompleted) setTimeout(stopRec, 700); /* 완주: 완성 화면 여운을 담고 저장 */
+    else stopRec();                            /* 중단(탭·회전): 저장 없이 조용히 폐기 */
+  }, 200);
+}
+function hideVidChip() { vPendBlob = null; clearTimeout(vPendTimer); vidChip.classList.add('hidden'); }
+function offerVideo(blob, ext) {
+  const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if (!touch) { deliverVideo(blob, ext); return; }
+  /* 터치 기기: 공유시트는 사용자 제스처 안에서만 열 수 있어 칩을 눌러 저장 */
+  vPendBlob = blob; vPendExt = ext;
+  vidChip.classList.remove('hidden');
+  clearTimeout(vPendTimer);
+  vPendTimer = setTimeout(hideVidChip, 120000);
+}
+vidChip.addEventListener('click', () => { const b = vPendBlob, x = vPendExt; hideVidChip(); if (b) deliverVideo(b, x); });
+recVidBtn.addEventListener('pointerdown', e => e.stopPropagation());
+recVidBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (vRec || vBusy || !lastReplayList) return;
+  const list = lastReplayList;
+  endReplay();
+  recVidBtn.textContent = '🎥 영상 담는 중… 끝나면 저장돼요';
+  startVidCapture(list);
+});
+if (!vidSupported()) recVidBtn.style.display = 'none';
 
 /* ── 아롱이 발자국 이스터에그 ── */
 let pawTimersOn = false;
