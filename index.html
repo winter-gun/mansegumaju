@@ -83,8 +83,27 @@ body{
 }
 .mrow small{color:#b1a390;font-size:12.5px;white-space:nowrap}
 .mrow:active{transform:scale(.98)}
-#huePrev{width:60px;height:60px;border-radius:50%;border:4px solid #fff;box-shadow:0 0 0 1px rgba(122,101,79,.2);background:hsl(330,45%,66%)}
-#hueRange{width:min(80vw,300px)}
+#wheelWrap{position:relative;width:min(58vw,230px);height:min(58vw,230px);touch-action:none}
+#wheelCv{width:100%;height:100%;display:block;border-radius:50%;box-shadow:0 6px 22px rgba(122,101,79,.18)}
+#wheelDots{position:absolute;inset:0;pointer-events:none}
+.wdot{
+  position:absolute;width:15px;height:15px;border-radius:50%;
+  transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.95);
+  box-shadow:0 1px 4px rgba(122,101,79,.4);
+}
+.wdot.base{width:23px;height:23px;border-width:3px}
+#harmRow{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.harmBtn{
+  border:1px solid rgba(122,101,79,.16);background:rgba(255,255,255,.8);color:#8d7f6d;
+  font-size:13px;font-family:inherit;padding:7px 13px;border-radius:999px;cursor:pointer;
+}
+.harmBtn.on{background:#efe3d3;border-color:rgba(122,101,79,.3);color:#6f6355}
+#palRow{display:flex;gap:9px;justify-content:center}
+.palChip{
+  width:44px;height:44px;border-radius:14px;cursor:pointer;padding:0;
+  border:2px solid rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(122,101,79,.18);
+}
+.palChip.on{box-shadow:0 0 0 2.5px #b99a86}
 #myCheerList{display:flex;flex-direction:column;gap:6px;max-height:30vh;overflow-y:auto;width:min(86vw,340px)}
 .cheerRow{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);border:1px solid rgba(122,101,79,.14);border-radius:12px;padding:8px 12px;font-size:13.5px;text-align:left}
 .cheerRow span{flex:1}
@@ -461,10 +480,20 @@ body{
   <div id="wheelOv" class="overlay hidden">
     <div class="big">색 고르기</div>
     <div class="small">파스텔 안에서만 움직여요</div>
-    <div id="huePrev"></div>
-    <input type="range" id="hueRange" min="0" max="360" value="330" step="1" aria-label="색상">
+    <div id="wheelWrap"><canvas id="wheelCv"></canvas><div id="wheelDots"></div></div>
+    <div id="harmRow">
+      <button class="harmBtn on" data-h="ana">비슷한 색</button>
+      <button class="harmBtn" data-h="comp">반대 색</button>
+      <button class="harmBtn" data-h="tri">세 갈래</button>
+      <button class="harmBtn" data-h="mono">한 색 농담</button>
+    </div>
+    <div id="palRow"></div>
     <div class="row">
       <button id="hueUse" class="tbtn">이 색으로 그리기</button>
+      <button id="palUse" class="tbtn">이 색들로 팔레트 바꾸기</button>
+    </div>
+    <div class="row">
+      <button id="palReset" class="tbtn">처음 색으로</button>
       <button id="hueClose" class="tbtn">닫기</button>
     </div>
   </div>
@@ -601,8 +630,8 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       pagerChip = $('pagerChip'), pagePrev = $('pagePrev'),
       pageNext = $('pageNext'), pageLabel = $('pageLabel'),
       quietChip = $('quietChip'), toolbarEl = $('toolbar'),
-      wheelOv = $('wheelOv'), huePrev = $('huePrev'), hueRange = $('hueRange'),
-      hueUse = $('hueUse'), hueClose = $('hueClose'),
+      wheelOv = $('wheelOv'), wheelCv = $('wheelCv'), wheelDots = $('wheelDots'),
+      palRow = $('palRow'), hueUse = $('hueUse'), hueClose = $('hueClose'),
       customSwatch = $('customSwatch'), wheelBtn = $('wheelBtn'),
       cheerOv = $('cheerOv'), myCheerList = $('myCheerList'),
       cheerInMain = $('cheerInMain'), cheerInSub = $('cheerInSub'),
@@ -1463,6 +1492,7 @@ function prefsSnapshot() {
     season: seasonOn,
     stamp: stampShape,
     pen: penStyle,
+    pal: currentPalette(),
     customColor: customSwatch.hidden ? null : customSwatch.dataset.color
   };
 }
@@ -1543,6 +1573,7 @@ async function restoreState() {
     if (PEN_STYLES.indexOf(pf.pen) >= 0) { penStyle = pf.pen; refreshPenIcon(); }
     if (Number.isInteger(pf.acc) && pf.acc >= 0 && pf.acc < ACCS.length) { accIdx = pf.acc; applyAcc(); }
     if (pf.season) { seasonOn = true; applySeason(); }
+    if (Array.isArray(pf.pal) && pf.pal.length === 5 && pf.pal.every(h => /^#[0-9a-f]{6}$/i.test(h))) applyPalette(pf.pal, null);
     if (pf.customColor) setCustomColor(pf.customColor, false);
     const sw = document.querySelector('.swatch[data-color="' + d.color + '"]');
     if (sw) {
@@ -1867,15 +1898,150 @@ function setCustomColor(hex, select) {
     if (tool === 'e') setTool(lastDrawTool);
   }
 }
+/* 색상환: 각도=색, 중심에서 멀수록 또렷 (파스텔 범위 안에서만) */
+const S_MIN = 10, S_MAX = 48, L_BASE = 66;
+const DEFAULT_PAL = ['#c98da0', '#94ab8c', '#8ea6c6', '#d9a97c', '#9b8878'];
+let wheelDrawn = 0, baseH = 330, baseS = 45, harmMode = 'ana', palList = [], palSel = 2;
+
+function hslRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360; s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+function drawWheel() {
+  const size = Math.round(wheelCv.clientWidth * Math.min(2, dpr)) || 240;
+  if (wheelDrawn === size) return;
+  wheelDrawn = size;
+  wheelCv.width = size; wheelCv.height = size;
+  const c = wheelCv.getContext('2d');
+  const img = c.createImageData(size, size);
+  const px = img.data, R = size / 2;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x - R + .5, dy = y - R + .5;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const i = (y * size + x) * 4;
+      if (d > R) { px[i + 3] = 0; continue; }
+      const h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+      const s = S_MIN + (S_MAX - S_MIN) * Math.min(1, d / R);
+      const rgb = hslRgb(h, s, L_BASE);
+      px[i] = rgb[0]; px[i + 1] = rgb[1]; px[i + 2] = rgb[2];
+      px[i + 3] = d > R - 1.2 ? Math.round(255 * (R - d) / 1.2) : 255;  // 가장자리 부드럽게
+    }
+  }
+  c.putImageData(img, 0, 0);
+}
+function harmony(h, s) {
+  const cl = v => Math.max(S_MIN, Math.min(S_MAX, v));
+  if (harmMode === 'comp') {
+    return { list: [[h - 15, s, L_BASE], [h, s, L_BASE], [h + 15, s, L_BASE], [h + 180, s, L_BASE], [h + 195, cl(s - 8), L_BASE]], base: 1 };
+  }
+  if (harmMode === 'tri') {
+    return { list: [[h, s, L_BASE], [h + 120, s, L_BASE], [h + 240, s, L_BASE], [h + 120, cl(s - 12), L_BASE + 8], [h + 240, cl(s - 12), L_BASE - 8]], base: 0 };
+  }
+  if (harmMode === 'mono') {
+    return { list: [[h, cl(s - 20), L_BASE + 9], [h, cl(s - 10), L_BASE + 4], [h, s, L_BASE], [h, cl(s + 10), L_BASE - 5], [h, cl(s + 20), L_BASE - 10]], base: 2 };
+  }
+  return { list: [[h - 30, s, L_BASE], [h - 15, s, L_BASE], [h, s, L_BASE], [h + 15, s, L_BASE], [h + 30, s, L_BASE]], base: 2 };
+}
+function refreshWheelUI() {
+  const hm = harmony(baseH, baseS);
+  palList = hm.list.map(a => ({ h: ((a[0] % 360) + 360) % 360, s: a[1], l: a[2], hex: hslToHex(a[0], a[1], a[2]) }));
+  if (palSel < 0 || palSel > 4) palSel = hm.base;
+  // 색상환 위 표식
+  wheelDots.innerHTML = '';
+  const R = wheelCv.clientWidth / 2;
+  palList.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'wdot' + (i === palSel ? ' base' : '');
+    const rad = R * Math.min(1, (p.s - S_MIN) / (S_MAX - S_MIN));
+    const a = p.h * Math.PI / 180;
+    d.style.left = (R + Math.cos(a) * rad) + 'px';
+    d.style.top = (R + Math.sin(a) * rad) + 'px';
+    d.style.background = p.hex;
+    wheelDots.appendChild(d);
+  });
+  // 팔레트 줄
+  palRow.innerHTML = '';
+  palList.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'palChip' + (i === palSel ? ' on' : '');
+    b.style.background = p.hex;
+    b.setAttribute('aria-label', '고른 색 ' + (i + 1));
+    b.addEventListener('click', () => { palSel = i; refreshWheelUI(); });
+    palRow.appendChild(b);
+  });
+}
+function wheelPick(e) {
+  const r = wheelCv.getBoundingClientRect();
+  const R = r.width / 2;
+  const dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  baseH = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+  baseS = S_MIN + (S_MAX - S_MIN) * Math.min(1, d / R);
+  const hm = harmony(baseH, baseS);
+  palSel = hm.base;
+  refreshWheelUI();
+}
+let wheelDrag = false;
+wheelCv.addEventListener('pointerdown', e => {
+  wheelDrag = true;
+  try { wheelCv.setPointerCapture(e.pointerId); } catch (_) {}
+  wheelPick(e);
+});
+wheelCv.addEventListener('pointermove', e => { if (wheelDrag) wheelPick(e); });
+wheelCv.addEventListener('pointerup', () => { wheelDrag = false; });
+wheelCv.addEventListener('pointercancel', () => { wheelDrag = false; });
+
+document.querySelectorAll('.harmBtn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.harmBtn').forEach(o => o.classList.remove('on'));
+  b.classList.add('on');
+  harmMode = b.dataset.h;
+  palSel = -1;
+  refreshWheelUI();
+}));
+function applyPalette(hexes, select) {
+  const sw = document.querySelectorAll('.swatch[data-color]:not(#customSwatch)');
+  hexes.forEach((hex, i) => {
+    if (!sw[i]) return;
+    sw[i].dataset.color = hex;
+    sw[i].style.background = hex;
+  });
+  if (select) {
+    const on = document.querySelector('.swatch.on');
+    if (on) on.classList.remove('on');
+    const idx = Math.max(0, Math.min(sw.length - 1, select.idx));
+    if (sw[idx]) { sw[idx].classList.add('on'); color = sw[idx].dataset.color; }
+    if (tool === 'e') setTool(lastDrawTool);
+  }
+}
+function currentPalette() {
+  return Array.from(document.querySelectorAll('.swatch[data-color]:not(#customSwatch)')).map(b => b.dataset.color);
+}
 wheelBtn.addEventListener('click', () => {
   wheelOv.classList.remove('hidden');
-});
-hueRange.addEventListener('input', () => {
-  huePrev.style.background = 'hsl(' + hueRange.value + ',45%,66%)';
+  wheelCv.offsetWidth;  // 배치 확정 후 그려야 크기가 잡힌다
+  drawWheel();
+  refreshWheelUI();
 });
 hueUse.addEventListener('click', () => {
-  setCustomColor(hslToHex(+hueRange.value, 45, 66), true);
+  const p = palList[palSel];
+  if (p) setCustomColor(p.hex, true);
   wheelOv.classList.add('hidden');
+  scheduleSave();
+});
+$('palUse').addEventListener('click', () => {
+  if (!palList.length) return;
+  applyPalette(palList.map(p => p.hex), { idx: palSel });
+  customSwatch.classList.remove('on');
+  wheelOv.classList.add('hidden');
+  scheduleSave();
+});
+$('palReset').addEventListener('click', () => {
+  applyPalette(DEFAULT_PAL, { idx: 0 });
+  customSwatch.classList.remove('on');
   scheduleSave();
 });
 hueClose.addEventListener('click', () => wheelOv.classList.add('hidden'));
@@ -2657,6 +2823,8 @@ async function cloudKeys() {
   if (cloudK) return cloudK;
   let s = null;
   try { s = localStorage.getItem(VK_KEY); } catch (_) {}
+  /* 사파리 사생활 모드 등에서 localStorage 쓰기가 조용히 막히면 열쇠가 사라진다 — 보조 보관함 */
+  if (!s) { try { const e = await dbGet('vk', 'state'); if (e && e.v) s = e.v; } catch (_) {} }
   if (!s) return null;
   const raw = b64buf(s);
   const mix = async label => {
@@ -2671,6 +2839,7 @@ async function cloudKeys() {
   cloudK = { room: Array.from(rid).map(b => b.toString(16).padStart(2, '0')).join(''), key };
   return cloudK;
 }
+let cloudState = '';  // '' | 'slow' | 'blocked'
 async function fsInit() {
   if (fsDb) return true;
   if (!navigator.onLine) return false;
@@ -2682,10 +2851,23 @@ async function fsInit() {
       fs = mods[1];
       const app = (a.getApps && a.getApps().length) ? a.getApp() : a.initializeApp(FB_CFG);
       fsDb = fs.getFirestore(app);
+      cloudState = '';
       return true;
-    })().catch(() => { fsLoading = null; return false; });
+    })().catch(() => {
+      fsLoading = null;
+      /* 온라인인데 불러오기 자체가 막힘 = 원래 주소가 아닌 화면(미리보기 등) */
+      if (navigator.onLine) cloudState = 'blocked';
+      return false;
+    });
   }
   return fsLoading;
+}
+/* 왜 안 되는지 사람 말로 — 오해를 부르는 "나중에 올라가요"를 남발하지 않기 위해 */
+function cloudWhy() {
+  if (!navigator.onLine) return '인터넷이 연결되면 바로 이어져요';
+  if (cloudState === 'blocked') return '이 화면에서는 우리 칸을 쓸 수 없어요 · 원래 주소(winter-gun.github.io)로 열어주세요';
+  if (cloudState === 'slow') return '처음 연결이 느려요 · 잠깐 뒤 다시 열면 나타나요';
+  return '지금은 닿을 수 없어요 · 잠시 후 다시 열어보세요';
 }
 async function cloudUp() {
   if (!(await fsInit())) return false;
@@ -2693,6 +2875,8 @@ async function cloudUp() {
   return true;
 }
 function roomCol(name) { return fs.collection(fsDb, 'rooms', cloudK.room, name); }
+/* 문서 이름을 기기+시각으로 고정 — 시간초과 뒤 재전송돼도 같은 자리에 덮어써서 중복이 안 생긴다 */
+function roomDoc(name, dev, ct) { return fs.doc(fsDb, 'rooms', cloudK.room, name, dev + '_' + ct); }
 function gzOk() { return typeof CompressionStream === 'function' && typeof DecompressionStream === 'function'; }
 async function pipeBytes(bytes, Trans, kind) {
   const st = new Blob([bytes]).stream().pipeThrough(new Trans(kind));
@@ -2726,7 +2910,18 @@ function cloudCue(t) {
 function withTimeout(p, ms) {
   return Promise.race([p, new Promise((res, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 }
-function cloudUpQuick(ms) { return withTimeout(cloudUp(), ms || 15000).catch(() => false); }
+/* 첫 연결은 SDK를 처음 내려받느라 오래 걸릴 수 있어 넉넉히, 그 뒤로는 짧게 */
+function cloudUpQuick(ms) {
+  return withTimeout(cloudUp(), ms || (fsDb ? 12000 : 30000))
+    .catch(() => {
+      if (!fsDb) {
+        /* 시간초과는 원래 작업을 멈추지 못한다 — 잠금을 풀어두지 않으면 다음 시도가 영영 막힌다 */
+        fsLoading = null;
+        if (navigator.onLine && !cloudState) cloudState = 'slow';
+      }
+      return false;
+    });
+}
 
 /* 보내기: 공유 칸에 그림 올리기 (오프라인이면 보낼함에 담아뒀다 나중에) */
 async function sendShared(payload, btn) {
@@ -2739,7 +2934,7 @@ async function sendShared(payload, btn) {
     if (enc.d.length > 950000) {
       state = 'big';
     } else if (await cloudUpQuick()) {
-      await withTimeout(fs.addDoc(roomCol('shared'), { ct: payload.ct, from: who, dev: DEV_ID, enc }), 12000);
+      await withTimeout(fs.setDoc(roomDoc('shared', DEV_ID, payload.ct), { ct: payload.ct, from: who, dev: DEV_ID, enc }), 12000);
       state = 'ok';
       try { localStorage.setItem('mansegumaju.sharedSeen', String(payload.ct)); } catch (_) {}
     } else {
@@ -2774,7 +2969,7 @@ async function openShared() {
   sharedChip.classList.add('hidden');
   sharedOv.classList.remove('hidden');
   if (!(await cloudUpQuick())) {
-    shStatus.textContent = navigator.onLine ? '지금은 우리 칸에 닿을 수 없어요 · 잠시 후 다시 열어보세요' : '인터넷이 연결되면 볼 수 있어요';
+    shStatus.textContent = cloudWhy();
     return;
   }
   try {
@@ -2908,7 +3103,7 @@ async function liveToggle() {
   if (liveOn) { liveStop('같이 그리기를 껐어요'); return; }
   const who = await ensureWho();
   if (!(await cloudUpQuick())) {
-    cloudCue(navigator.onLine ? '지금은 켤 수 없어요 · 잠시 후 다시요' : '인터넷이 연결되면 같이 그릴 수 있어요');
+    cloudCue(cloudWhy());
     return;
   }
   try {
@@ -2978,10 +3173,11 @@ const diaryOv = $('diaryOv'), dcal = $('dcal'), dTitle = $('dTitle'),
       dcalWrap = $('dcalWrap'), ddayWrap = $('ddayWrap'),
       dDayTitle = $('dDayTitle'), diaryThread = $('diaryThread'),
       diaryIn = $('diaryIn'), dDayStatus = $('dDayStatus'), dcalStatus = $('dcalStatus');
-let dY = 0, dM = 0, dSelKey = '';
+let dY = 0, dM = 0, dSelKey = '', dGen = 0;
 function dPad(n) { return String(n).padStart(2, '0'); }
 function dMonthKey(y, m) { return y + '-' + dPad(m + 1); }
 async function renderDcal() {
+  const gen = ++dGen;   // 달을 빠르게 넘길 때 늦게 온 응답이 엉뚱한 달에 점을 찍지 않도록
   dTitle.textContent = dY + '년 ' + (dM + 1) + '월';
   dcal.innerHTML = '';
   for (const h of ['일', '월', '화', '수', '목', '금', '토']) {
@@ -3003,17 +3199,22 @@ async function renderDcal() {
     cells.push(b);
   }
   dcalStatus.textContent = '점이 있는 날에 일기가 있어요 · 오늘 칸부터 한 줄 남겨보세요';
+  const monthKey = dMonthKey(dY, dM);
   try {
     if (await cloudUpQuick()) {
-      const s = await withTimeout(fs.getDoc(fs.doc(fsDb, 'rooms', cloudK.room, 'diaryIdx', dMonthKey(dY, dM))), 10000);
+      const s = await withTimeout(fs.getDoc(fs.doc(fsDb, 'rooms', cloudK.room, 'diaryIdx', monthKey)), 10000);
+      if (gen !== dGen) return;
       if (s.exists()) {
         const marks = s.data();
         for (let d = 1; d <= days; d++) if (marks['d' + dPad(d)]) cells[d - 1].classList.add('has');
       }
-    } else if (!navigator.onLine) {
-      dcalStatus.textContent = '지금은 인터넷이 없어요 · 그래도 쓸 수 있고, 연결되면 올라가요';
+    } else if (gen === dGen) {
+      /* 점을 못 불러왔으면 "점이 있는 날에 일기가 있어요"는 거짓말이 된다 */
+      dcalStatus.textContent = cloudWhy();
     }
-  } catch (_) {}
+  } catch (_) {
+    if (gen === dGen) dcalStatus.textContent = '지난 일기를 표시하지 못했어요 · 날짜를 눌러보면 열려요';
+  }
 }
 async function openDiary() {
   closeMenu();
@@ -3027,6 +3228,7 @@ async function openDiary() {
   renderDcal();
 }
 async function openDiaryDay(key) {
+  const gen = ++dGen;   // 늦게 온 응답이 다른 날짜 칸을 덮어쓰지 않도록
   dSelKey = key;
   const p = key.split('-');
   dDayTitle.textContent = (+p[1]) + '월 ' + (+p[2]) + '일의 일기';
@@ -3035,12 +3237,14 @@ async function openDiaryDay(key) {
   diaryThread.innerHTML = '<div class="small">불러오는 중…</div>';
   dDayStatus.textContent = '';
   if (!(await cloudUpQuick())) {
+    if (gen !== dGen) return;
     diaryThread.innerHTML = '';
-    dDayStatus.textContent = navigator.onLine ? '지금은 불러올 수 없어요 · 써두면 나중에 올라가요' : '인터넷이 없어도 써둘 수 있어요 · 연결되면 올라가요';
+    dDayStatus.textContent = cloudState === 'blocked' ? cloudWhy() : (cloudWhy() + ' · 써둔 글은 남아 있어요');
     return;
   }
   try {
-    const snap = await withTimeout(fs.getDocs(fs.query(roomCol('diary'), fs.where('day', '==', key))), 12000);
+    const snap = await withTimeout(fs.getDocs(fs.query(roomCol('diary'), fs.where('day', '==', key))), 15000);
+    if (gen !== dGen) return;
     const rows = [];
     for (const dref of snap.docs) {
       const x = dref.data();
@@ -3050,6 +3254,7 @@ async function openDiaryDay(key) {
       rows.push({ ct: x.ct || 0, from: x.from || '?', dev: x.dev, text: d.text });
     }
     rows.sort((a, b) => a.ct - b.ct);
+    if (gen !== dGen) return;
     diaryThread.innerHTML = '';
     if (!rows.length) {
       const e = document.createElement('div');
@@ -3069,6 +3274,7 @@ async function openDiaryDay(key) {
     }
     diaryThread.scrollTop = diaryThread.scrollHeight;
   } catch (_) {
+    if (gen !== dGen) return;
     diaryThread.innerHTML = '';
     dDayStatus.textContent = '지금은 불러올 수 없어요 · 잠시 후 다시요';
   }
@@ -3084,7 +3290,7 @@ async function sendDiary() {
   try {
     if (await cloudUpQuick()) {
       const enc = await encPack({ text });
-      await withTimeout(fs.addDoc(roomCol('diary'), { day: dSelKey, ct: payload.ct, from: who, dev: DEV_ID, enc }), 12000);
+      await withTimeout(fs.setDoc(roomDoc('diary', DEV_ID, payload.ct), { day: dSelKey, ct: payload.ct, from: who, dev: DEV_ID, enc }), 12000);
       const f = {}; f['d' + dSelKey.slice(8)] = true;
       withTimeout(fs.setDoc(fs.doc(fsDb, 'rooms', cloudK.room, 'diaryIdx', dSelKey.slice(0, 7)), f, { merge: true }), 10000).catch(() => {});
       state = 'ok';
@@ -3117,19 +3323,17 @@ async function flushOutbox() {
         if (it.kind === 'shared' && it.payload) {
           const enc = await encPack(it.payload);
           if (enc.d.length <= 950000) {
-            await withTimeout(fs.addDoc(roomCol('shared'), {
-              ct: it.payload.ct || Date.now(),
-              from: it.payload.from || whoAmI() || '?',
-              dev: it.payload.dev || DEV_ID, enc
+            const ct = it.payload.ct || it.t || Date.now(), dv = it.payload.dev || DEV_ID;
+            await withTimeout(fs.setDoc(roomDoc('shared', dv, ct), {
+              ct, from: it.payload.from || whoAmI() || '?', dev: dv, enc
             }), 15000);
           }
         } else if (it.kind === 'diary' && it.payload && it.payload.day) {
           const enc = await encPack({ text: it.payload.text || '' });
-          await withTimeout(fs.addDoc(roomCol('diary'), {
-            day: it.payload.day,
-            ct: it.payload.ct || Date.now(),
-            from: it.payload.from || whoAmI() || '?',
-            dev: it.payload.dev || DEV_ID, enc
+          const ct = it.payload.ct || it.t || Date.now(), dv = it.payload.dev || DEV_ID;
+          await withTimeout(fs.setDoc(roomDoc('diary', dv, ct), {
+            day: it.payload.day, ct,
+            from: it.payload.from || whoAmI() || '?', dev: dv, enc
           }), 15000);
           const f = {}; f['d' + it.payload.day.slice(8)] = true;
           await withTimeout(fs.setDoc(fs.doc(fsDb, 'rooms', cloudK.room, 'diaryIdx', it.payload.day.slice(0, 7)), f, { merge: true }), 10000).catch(() => {});
@@ -3202,7 +3406,9 @@ async function submitPass() {
   try {
     const raw = await keyFromPass(v);
     const p = await vaultDecrypt(raw);
-    try { localStorage.setItem(VK_KEY, bufB64(raw)); } catch (_) {}
+    const vkB64 = bufB64(raw);
+    try { localStorage.setItem(VK_KEY, vkB64); } catch (_) {}
+    dbPut({ k: 'vk', v: vkB64 }, 'state').catch(() => {});  // 한쪽이 막혀도 다음에 또 묻지 않도록
     lockErr.textContent = '';
     unlockSuccess(p);
   } catch (_) {
@@ -3223,7 +3429,9 @@ lockHintBtn.addEventListener('click', () => {
     return;
   }
   try {
-    const s = localStorage.getItem(VK_KEY);
+    let s = null;
+    try { s = localStorage.getItem(VK_KEY); } catch (_) {}
+    if (!s) { try { const e = await dbGet('vk', 'state'); if (e && e.v) s = e.v; } catch (_) {} }
     if (s) {
       unlockSuccess(await vaultDecrypt(b64buf(s)));
       return;

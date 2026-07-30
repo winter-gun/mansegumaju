@@ -1,5 +1,5 @@
 /* 만세구마쥬키우기 — 오프라인 캐시 (stale-while-revalidate) */
-const CACHE = 'mansegumaju-v1';
+const CACHE = 'mansegumaju-v2';
 const PRECACHE = [
   './',
   'index.html',
@@ -28,6 +28,29 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
+
+  /* 본문(index.html)만은 최신 우선 — 3초 안에 답이 없으면 저장해둔 것으로.
+     이렇게 해야 새 기능을 올렸을 때 두 번 열지 않아도 바로 보인다. */
+  const isDoc = e.request.mode === 'navigate' ||
+    url.pathname.endsWith('/') || url.pathname.endsWith('index.html');
+  if (isDoc) {
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const net = await Promise.race([
+          fetch(e.request),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 3000))
+        ]);
+        if (net && net.ok) { cache.put(e.request, net.clone()); return net; }
+      } catch (_) { /* 느리거나 끊김 → 저장해둔 것으로 */ }
+      const hit = await cache.match(e.request, { ignoreSearch: true }) || await cache.match('index.html');
+      if (hit) return hit;
+      try { return await fetch(e.request); } catch (_) {}
+      return new Response('offline', { status: 503 });
+    })());
+    return;
+  }
+
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const hit = await cache.match(e.request, { ignoreSearch: true });
