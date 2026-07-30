@@ -179,6 +179,25 @@ body{
 #clearBtn.armed{background:#f2d9d3;border-color:#dcb3a8;color:#9c6b5f}
 #toolbar.down{transform:translateX(-50%) translateY(calc(100% + 46px));opacity:0;pointer-events:none}
 #toolbar.faded{opacity:.13;pointer-events:none}
+/* 굵기 조절 쪽지 — 툴바 바로 위에 뜬다 */
+#sizePop{
+  position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 112px);z-index:6;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:14px 18px 12px;border-radius:20px;
+  background:rgba(255,252,244,.97);border:1px solid rgba(122,101,79,.16);
+  box-shadow:0 8px 26px rgba(122,101,79,.18);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+}
+#sizePop.hidden{display:none}
+#sizeWhat{font-size:12.5px;color:#a3937f}
+#sizePrev{
+  width:min(64vw,230px);height:46px;border-radius:14px;background:#fffdf7;
+  border:1px solid rgba(122,101,79,.1);
+  display:flex;align-items:center;justify-content:center;
+}
+#sizePrevDot{border-radius:50%;background:#6f6355;display:block}
+#sizeRange{width:min(64vw,230px)}
 
 /* ── 오버레이(인트로/저장) ───────────────────────── */
 .overlay{
@@ -384,6 +403,11 @@ body{
     <span id="pageLabel">1/1</span>
     <button id="pageNext" aria-label="다음 장">›</button>
   </div>
+  <div id="sizePop" class="hidden">
+    <div id="sizeWhat">그리기 굵기</div>
+    <div id="sizePrev"><span id="sizePrevDot"></span></div>
+    <input type="range" id="sizeRange" min="30" max="280" value="100" step="1" aria-label="굵기">
+  </div>
   <button id="barHandle" aria-label="도구 꺼내기">
     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5L10 7.5l5 5"/></svg>
   </button>
@@ -417,6 +441,9 @@ body{
     <button class="tool" id="toolStamp" data-tool="s" aria-label="아롱이 발자국 스탬프">
       <svg viewBox="0 0 20 20" fill="currentColor"><ellipse cx="10" cy="12.8" rx="3.5" ry="2.8"/><circle cx="5.2" cy="9.6" r="1.7"/><circle cx="8.3" cy="7.4" r="1.7"/><circle cx="11.7" cy="7.4" r="1.7"/><circle cx="14.8" cy="9.6" r="1.7"/></svg>
     </button>
+    <button class="tool" id="toolPick" data-tool="i" aria-label="스포이드 (그림에서 색 집기)">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M12.4 3.8a2 2 0 0 1 2.8 2.8l-1.1 1.1 1 1-1.4 1.4-1-1-5.3 5.3-2.6.7.7-2.6 5.3-5.3-1-1L11.2 4.9l1 1z"/></svg>
+    </button>
     <button class="tool" id="toolEraser" data-tool="e" aria-label="지우개">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8.2 16.2L3.8 11.8a1.5 1.5 0 0 1 0-2.1l5.7-5.7a1.5 1.5 0 0 1 2.1 0l4.5 4.5a1.5 1.5 0 0 1 0 2.1l-4.9 4.9a1.5 1.5 0 0 1-1.1.4H8.2z"/><path d="M6.7 8.4l5.1 5.1"/></svg>
     </button>
@@ -424,6 +451,9 @@ body{
     <button class="tool" id="sizeBtn" aria-label="선 굵기"><span id="sizeDot"></span></button>
     <button class="tool dim" id="undoBtn" aria-label="되돌리기">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4.5L4 8l3.5 3.5"/><path d="M4 8h7.2a4.4 4.4 0 1 1-.4 8.8H8.6"/></svg>
+    </button>
+    <button class="tool dim" id="redoBtn" aria-label="다시 실행">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5L16 8l-3.5 3.5"/><path d="M16 8H8.8a4.4 4.4 0 1 0 .4 8.8h2.2"/></svg>
     </button>
     <button class="tool" id="menuBtn" aria-label="메뉴">
       <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="4.5" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="15.5" cy="10" r="1.7"/></svg>
@@ -641,7 +671,9 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       canvas = $('draw'), mctx = canvas.getContext('2d'),
       live = $('live'), lctx = live.getContext('2d'),
       clearBtn = $('clearBtn'), saveBtn = $('saveBtn'), undoBtn = $('undoBtn'),
-      sizeBtn = $('sizeBtn'), sizeDot = $('sizeDot'),
+      sizeBtn = $('sizeBtn'), sizeDot = $('sizeDot'), redoBtn = $('redoBtn'),
+      sizePop = $('sizePop'), sizeRange = $('sizeRange'),
+      sizePrevDot = $('sizePrevDot'), sizeWhat = $('sizeWhat'),
       saveOverlay = $('saveOverlay'), shotImg = $('shot'),
       dlBtn = $('dlBtn'), shareBtn = $('shareBtn'), backBtn = $('backBtn'),
       pressHint = $('pressHint'), intro = $('intro'),
@@ -745,8 +777,10 @@ intro.addEventListener('pointerdown', dismissIntro);
 
 /* ── 상태 ──────────────────────────────────────── */
 const LS_KEY = 'mansegumaju.v1';
-const SIZES = [.6, 1, 1.9];
+const SIZES = [.6, 1, 1.9];   // 옛 저장본(sizeIdx)을 읽기 위해 남겨둠
 const strokes = [];
+const redoStack = [];         // 되돌린 획들 — '다시 실행'으로 되살린다
+let drawSize = 1, eraseSize = 1;
 let cur = null, activeId = null, lastPenTs = -1e9;
 let dpr = 1, vw = 0, vh = 0;
 let color = document.querySelector('.swatch.on').dataset.color;
@@ -774,10 +808,12 @@ let mySnd = { id: 0, el: null, gain: null, url: null };  // 내 소리 재생 �
 let sndBreathOn = true;
 try { sndBreathOn = localStorage.getItem('mansegumaju.sndBreath') !== 'f'; } catch (_) {}
 
-const baseW = () => 4.5 * SIZES[sizeIdx];
+/* 그리기 굵기와 지우개 굵기는 따로 기억한다 */
+const sizeVal = () => (tool === 'e' ? eraseSize : drawSize);
+const baseW = () => 4.5 * sizeVal();
 const markerW = () => baseW() * 2.6;
 const eraserW = () => baseW() * 3.2;
-const stampU = () => 9 * SIZES[sizeIdx];
+const stampU = () => 9 * drawSize;
 const wcBase = () => baseW() * 2.4;
 
 /* ── 캔버스 크기 + 보기 배율(확대/축소) ──────────────
@@ -960,6 +996,7 @@ canvas.addEventListener('pointerdown', e => {
   // 펜 사용 직후의 손바닥 터치는 무시
   if (e.pointerType === 'touch' && e.timeStamp - lastPenTs < 1500) return;
   e.preventDefault();
+  if (tool === 'i') { pickColorAt(e.clientX, e.clientY); return; }   // 스포이드는 획을 만들지 않는다
   activeId = e.pointerId;
   try { canvas.setPointerCapture(activeId); } catch (_) {}
   const x = toDocX(e.clientX), y = toDocY(e.clientY);
@@ -1034,6 +1071,8 @@ canvas.addEventListener('pointermove', e => {
 function finishCurrent() {
   if (!cur) return;
   const done = cur;
+  redoStack.length = 0;   // 새로 그으면 '다시 실행'할 미래는 사라진다
+  refreshRedo();
   if (cur.t === 'p' || cur.t === 'm' || cur.t === 'w') compositeLive();
   cur = null; activeId = null;
   dirtySinceArchive = true;
@@ -1057,13 +1096,15 @@ document.querySelectorAll('.swatch').forEach(b => b.addEventListener('click', ()
   if (on) on.classList.remove('on');
   b.classList.add('on');
   color = b.dataset.color;
-  if (tool === 'e') setTool(lastDrawTool);  // 색을 고르면 지우개에서 복귀
+  if (tool === 'e' || tool === 'i') setTool(lastDrawTool);  // 색을 고르면 그리기로 복귀
+  if (!sizePop.classList.contains('hidden')) refreshSizePop();
   scheduleSave();
 }));
 
 function setTool(t) {
   tool = t;
-  if (t !== 'e') lastDrawTool = t;
+  if (t !== 'e' && t !== 'i') lastDrawTool = t;
+  if (!sizePop.classList.contains('hidden')) refreshSizePop();
   document.querySelectorAll('.tool[data-tool]').forEach(b =>
     b.classList.toggle('on', b.dataset.tool === t));
 }
@@ -1074,17 +1115,51 @@ document.querySelectorAll('.tool[data-tool]').forEach(b =>
     setTool(b.dataset.tool);
   }));
 
+/* ── 굵기: 버튼을 누르면 미끄럼대가 뜨고, 그리기·지우개를 따로 기억한다 ── */
 function refreshSizeDot() {
-  const d = [7, 10, 15][sizeIdx];
+  const d = Math.max(5, Math.min(18, Math.round(4.5 * sizeVal() * 1.5)));
   sizeDot.style.width = d + 'px';
   sizeDot.style.height = d + 'px';
 }
-sizeBtn.addEventListener('click', () => {
-  sizeIdx = (sizeIdx + 1) % SIZES.length;
+function refreshSizePop() {
+  const erasing = tool === 'e';
+  sizeWhat.textContent = erasing ? '지우개 굵기' : '그리기 굵기';
+  const v = sizeVal();
+  sizeRange.value = String(Math.round(v * 100));
+  const shown = erasing ? eraserW() : (tool === 'm' ? markerW() : tool === 'w' ? baseW() * 2.4 : baseW() * 1.4);
+  const d = Math.max(3, Math.min(42, shown));
+  sizePrevDot.style.width = d + 'px';
+  sizePrevDot.style.height = d + 'px';
+  sizePrevDot.style.background = erasing ? 'rgba(122,101,79,.22)' : color;
+}
+function openSizePop(on) {
+  if (on) { refreshSizePop(); sizePop.classList.remove('hidden'); }
+  else sizePop.classList.add('hidden');
+}
+sizeBtn.addEventListener('click', () => openSizePop(sizePop.classList.contains('hidden')));
+sizeRange.addEventListener('input', () => {
+  const v = Math.max(.3, Math.min(2.8, (+sizeRange.value || 100) / 100));
+  if (tool === 'e') eraseSize = v; else drawSize = v;
   refreshSizeDot();
+  refreshSizePop();
   scheduleSave();
 });
 refreshSizeDot();
+
+/* ── 다시 실행 ── */
+function refreshRedo() { redoBtn.classList.toggle('dim', !redoStack.length); }
+function doRedo() {
+  const e = redoStack.pop();
+  if (!e) return;
+  strokes.splice(Math.min(e.idx, strokes.length), 0, e.st);
+  dirtySinceArchive = true;
+  redrawAll();
+  refreshUndo();
+  refreshRedo();
+  scheduleSave();
+}
+redoBtn.addEventListener('click', () => { if (!cur) doRedo(); });
+refreshRedo();
 
 function cycleBreath() {
   breathIdx = (breathIdx + 1) % BREATHS.length;
@@ -1108,10 +1183,13 @@ function doUndo() {
   let i = strokes.length - 1;
   while (i >= 0 && strokes[i].rm) i--;
   if (i < 0) return false;
+  redoStack.push({ idx: i, st: strokes[i] });
+  if (redoStack.length > 40) redoStack.shift();
   strokes.splice(i, 1);
   dirtySinceArchive = true;
   redrawAll();
   refreshUndo();
+  refreshRedo();
   scheduleSave();
   return true;
 }
@@ -1138,8 +1216,10 @@ clearBtn.addEventListener('click', () => {
   clearTimeout(armTimer);
   disarm();
   strokes.length = 0;
+  redoStack.length = 0;
   redrawAll();
   refreshUndo();
+  refreshRedo();
   scheduleSave();
 });
 
@@ -1581,7 +1661,7 @@ function prefsSnapshot() {
 }
 function persist() {
   syncPage();
-  const base = { v: 2, w: vw, h: vh, color, sizeIdx, breathIdx, prefs: prefsSnapshot(), pageIdx };
+  const base = { v: 2, w: vw, h: vh, color, sizeIdx, dsz: drawSize, esz: eraseSize, breathIdx, prefs: prefsSnapshot(), pageIdx };
   try {
     // localStorage에는 배경 사진 없이 가볍게 (용량 보호)
     localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, base,
@@ -1643,10 +1723,13 @@ async function restoreState() {
     for (const p of ps) scaleStrokesArr(p.strokes, sc, dx, dy);
     pages = ps;
     if (pages.some(p => p.strokes.length)) dirtySinceArchive = true;
+    const cl = v => Math.max(.3, Math.min(2.8, v));
     if (Number.isInteger(d.sizeIdx) && d.sizeIdx >= 0 && d.sizeIdx < SIZES.length) {
-      sizeIdx = d.sizeIdx;
-      refreshSizeDot();
+      drawSize = eraseSize = SIZES[d.sizeIdx];   // 옛 저장본(3단계)에서 옮겨오기
     }
+    if (typeof d.dsz === 'number' && d.dsz > 0) drawSize = cl(d.dsz);
+    if (typeof d.esz === 'number' && d.esz > 0) eraseSize = cl(d.esz);
+    refreshSizeDot();
     if (Number.isInteger(d.breathIdx) && d.breathIdx >= 0 && d.breathIdx < BREATHS.length) {
       breathIdx = d.breathIdx;
       applyBreath();
@@ -1993,6 +2076,57 @@ function hslToHex(h, s, l) {
   const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
   const to = v => Math.round(v * 255).toString(16).padStart(2, '0');
   return '#' + to(f(0)) + to(f(8)) + to(f(4));
+}
+/* ── 스포이드: 그림에서 색 집기 ──────────────────────
+   화면 픽셀이 아니라 획 데이터에서 원래 색을 찾는다.
+   마커·수채는 겹쳐 그리면 화면 색이 옅어져서, 픽셀을 집으면 원래 색과 달라지기 때문. ── */
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len = dx * dx + dy * dy;
+  let t = len ? ((px - ax) * dx + (py - ay) * dy) / len : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+function hitStroke(st, x, y, tol) {
+  const pts = st.pts;
+  if (!pts || !pts.length) return false;
+  if (st.t === 's') {
+    for (const p of pts) if (Math.hypot(x - p.x, y - p.y) <= (st.u || 9) + tol) return true;
+    return false;
+  }
+  const half = i => st.t === 'w' ? (pts[i].r || 8)
+    : st.t === 'm' ? (st.w || 8) / 2
+    : (pts[i].w || 4) / 2;
+  if (pts.length === 1) return Math.hypot(x - pts[0].x, y - pts[0].y) <= half(0) + tol;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    if (segDist(x, y, a.x, a.y, b.x, b.y) <= Math.max(half(i - 1), half(i)) + tol) return true;
+  }
+  return false;
+}
+function pixelColorAt(sx, sy) {
+  const px = Math.round(sx * dpr), py = Math.round(sy * dpr);
+  for (const cv of [canvas, bgcv]) {
+    try {
+      const d = cv.getContext('2d').getImageData(px, py, 1, 1).data;
+      if (d[3] > 24) return '#' + [d[0], d[1], d[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+    } catch (_) {}
+  }
+  return null;
+}
+function pickColorAt(sx, sy) {
+  const x = toDocX(sx), y = toDocY(sy), tol = 5 / vs.scale;
+  let hex = null;
+  for (let i = strokes.length - 1; i >= 0 && !hex; i--) {
+    const st = strokes[i];
+    if (st.t === 'e' || !st.c) continue;          // 지우개는 색이 없음
+    if (hitStroke(st, x, y, tol)) hex = st.c;
+  }
+  if (!hex) hex = pixelColorAt(sx, sy);           // 배경 사진 등은 화면 픽셀에서
+  if (!hex) { cloudCue('여기엔 집을 색이 없어요'); return; }
+  setCustomColor(hex, true);
+  setTool(lastDrawTool);
+  cloudCue('이 색으로 그려요');
 }
 function setCustomColor(hex, select) {
   customSwatch.hidden = false;
@@ -2696,7 +2830,7 @@ $('mMySnd').addEventListener('click', () => {
 
 /* ── 두 손가락: 톡 = 되돌리기 · 벌리거나 밀기 = 확대·이동 ── */
 const tf = new Map();
-let tfArmed = false, pinch = null, pinchRaf = 0;
+let tfArmed = false, pinch = null, pinchRaf = 0, tfMax = 0;
 function cancelCurrentStroke() {
   if (!cur) return;
   const idx = strokes.lastIndexOf(cur);
@@ -2731,6 +2865,7 @@ function endPinch() {
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch') return;
   tf.set(e.pointerId, { x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, t: performance.now(), moved: false, up: 0 });
+  tfMax = Math.max(tfMax, tf.size);
   if (tf.size === 2) {
     tfArmed = true;
     cancelCurrentStroke();
@@ -2773,19 +2908,20 @@ function tfUp(e) {
   ent.up = performance.now();
   const all = Array.from(tf.values());
   if (all.every(a => a.up)) {
-    if (tfArmed && tf.size === 2 && all.every(a => !a.moved && (a.up - a.t) < 450)) {
-      if (strokes.length) doUndo();
-    }
+    const quiet = all.every(a => !a.moved && (a.up - a.t) < 450);
+    if (quiet && tfMax === 2 && tfArmed) { if (strokes.length) doUndo(); }
+    else if (quiet && tfMax === 3) doRedo();   // 세 손가락 톡 = 다시 실행
     endPinch();
     tf.clear();
     tfArmed = false;
+    tfMax = 0;
   }
 }
 canvas.addEventListener('pointerup', tfUp);
 canvas.addEventListener('pointercancel', e => {
   tf.delete(e.pointerId);
   if (tf.size < 2) endPinch();
-  if (!tf.size) tfArmed = false;
+  if (!tf.size) { tfArmed = false; tfMax = 0; }
 });
 
 /* ── 타임랩스 영상 저장: 리플레이를 동영상 파일로 ── */
