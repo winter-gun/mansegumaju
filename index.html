@@ -93,13 +93,6 @@ body{
   font-size:11.5px;color:#8d7f6d;min-width:36px;text-align:center;cursor:pointer;
   background:none;border:none;font-family:inherit;padding:0;
 }
-#quietChip{
-  position:absolute;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:3;
-  width:40px;height:40px;border-radius:50%;cursor:pointer;
-  background:rgba(255,252,244,.75);border:1px solid rgba(122,101,79,.14);color:#a3937f;
-  display:flex;align-items:center;justify-content:center;
-}
-
 /* ── 메뉴 / 색상환 / 문구 ─────────────────────────── */
 /* ── 메뉴: 전체화면 대신 아래에서 올라오는 시트 (뒤에 그림이 보인다) ── */
 .sheet{
@@ -110,7 +103,7 @@ body{
   transition:opacity .28s ease;
 }
 .sheet.hidden{opacity:0;pointer-events:none}
-#sheetCard{
+.sheetCard{
   width:min(96vw,460px);max-height:78vh;
   display:flex;flex-direction:column;align-items:center;
   padding:8px 16px calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -119,8 +112,8 @@ body{
   box-shadow:0 -10px 34px rgba(122,101,79,.18);
   transition:transform .28s cubic-bezier(.4,0,.2,1);
 }
-.sheet.hidden #sheetCard{transform:translateY(102%)}
-#sheetGrip{width:40px;height:4px;border-radius:2px;background:rgba(122,101,79,.22);margin:4px 0 10px}
+.sheet.hidden .sheetCard{transform:translateY(102%)}
+.sheetGrip{width:40px;height:4px;border-radius:2px;background:rgba(122,101,79,.22);margin:4px 0 10px}
 .mhead{
   width:100%;font-size:12px;color:#b1a390;letter-spacing:.02em;
   padding:12px 6px 5px;text-align:left;
@@ -476,9 +469,6 @@ body{
     <button id="zoomLabel" aria-label="원래 크기로">100%</button>
     <button id="zoomIn" aria-label="확대">＋</button>
   </div>
-  <button id="quietChip" hidden aria-label="도구 다시 보기">
-    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5L10 7.5l5 5"/></svg>
-  </button>
 
   <div id="topRight">
     <button id="saveBtn" class="tbtn">저장하기</button>
@@ -587,14 +577,12 @@ body{
   </div>
 
   <div id="menuOv" class="sheet hidden">
-    <div id="sheetCard">
-      <div id="sheetGrip"></div>
+    <div class="sheetCard">
+      <div class="sheetGrip"></div>
       <div id="menuList">
         <div class="mhead">지금 쉬려고</div>
         <button class="mrow" id="mBreath"><span>호흡 속도</span><small id="sBreath"></small></button>
-        <button class="mrow" id="mSound"><span>잔잔한 소리</span><small id="sSound"></small></button>
-        <button class="mrow" id="mMySnd"><span>내 소리</span><small id="sMySnd">녹음·파일</small></button>
-        <button class="mrow" id="mQuiet"><span>조용히 모드</span><small>도구 잠시 접기</small></button>
+        <button class="mrow" id="mSound"><span>소리</span><small id="sSound"></small></button>
 
         <div class="mhead">그리기</div>
         <button class="mrow" id="mNewPage"><span>새 장 넘기기</span><small id="sPage"></small></button>
@@ -613,13 +601,24 @@ body{
         <button class="mrow" id="mLive"><span>같이 그리기</span><small id="sLive">꺼짐</small></button>
 
         <div class="mhead">꾸미기</div>
-        <button class="mrow" id="mAcc"><span>고구마 꾸미기</span><small id="sAcc"></small></button>
-        <button class="mrow" id="mSeason"><span>계절 효과</span><small id="sSeason"></small></button>
-        <button class="mrow" id="mCheer"><span>나만의 문구</span><small>저장 화면 인사말</small></button>
+        <button class="mrow" id="mDeco"><span>꾸미기</span><small>고구마 · 계절 · 문구</small></button>
       </div>
       <div class="row" style="margin-top:10px"><button id="menuClose" class="tbtn">닫기</button></div>
     </div>
     <input type="file" id="bgInput" accept="image/*" hidden>
+  </div>
+
+  <div id="decoOv" class="sheet hidden">
+    <div class="sheetCard">
+      <div class="sheetGrip"></div>
+      <div class="mhead">고구마 꾸미기</div>
+      <div class="row" id="accRow"></div>
+      <div class="mhead">계절 효과 — 봄 벚꽃 · 여름 잎 · 가을 낙엽 · 겨울 눈</div>
+      <div class="row"><button id="seasonBtn" class="optChip"></button></div>
+      <div class="mhead">나만의 문구</div>
+      <div class="row"><button id="cheerOpenBtn" class="optChip">저장 화면 인사말 고치기</button></div>
+      <div class="row" style="margin-top:14px"><button id="decoClose" class="tbtn">닫기</button></div>
+    </div>
   </div>
 
   <div id="wheelOv" class="overlay hidden">
@@ -644,8 +643,15 @@ body{
   </div>
 
   <div id="soundsOv" class="overlay hidden">
-    <div class="big">내 소리</div>
-    <div class="small">아롱이 숨소리도, 좋아하는 노래도 — 전부 이 기기 안에만 저장돼요</div>
+    <div class="big">소리</div>
+    <div class="small">잔잔한 소리를 골라도 되고, 내 소리를 직접 담아도 돼요</div>
+    <div class="row" id="ambRow">
+      <button class="tbtn ambBtn" data-amb="0">꺼짐</button>
+      <button class="tbtn ambBtn" data-amb="1">빗소리</button>
+      <button class="tbtn ambBtn" data-amb="2">파도</button>
+      <button class="tbtn ambBtn" data-amb="3">피아노</button>
+    </div>
+    <div class="small" style="margin-top:6px">내 소리 — 아롱이 숨소리도, 좋아하는 노래도. 이 기기 안에만 저장돼요</div>
     <div id="mySndList"></div>
     <div class="small" id="sndStatus"></div>
     <div class="row">
@@ -771,13 +777,13 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       lockInput = $('lockInput'), lockBtn = $('lockBtn'), lockErr = $('lockErr'),
       lockHintBtn = $('lockHintBtn'), lockHint = $('lockHint'),
       menuBtn = $('menuBtn'), menuOv = $('menuOv'), menuClose = $('menuClose'),
-      sBreath = $('sBreath'), sSound = $('sSound'), sSeason = $('sSeason'),
-      sAcc = $('sAcc'), sPage = $('sPage'), mBgClear = $('mBgClear'),
+      sBreath = $('sBreath'), sSound = $('sSound'), decoOv = $('decoOv'),
+      sPage = $('sPage'), mBgClear = $('mBgClear'),
       bgInput = $('bgInput'), bgcv = $('bgcv'), bctx = bgcv.getContext('2d'),
       seasonLayer = $('seasonLayer'), pawTrail = $('pawTrail'),
       pagerChip = $('pagerChip'), pagePrev = $('pagePrev'),
       pageNext = $('pageNext'), pageLabel = $('pageLabel'),
-      quietChip = $('quietChip'), toolbarEl = $('toolbar'),
+      toolbarEl = $('toolbar'),
       barHandle = $('barHandle'), zoomChip = $('zoomChip'), zoomLabel = $('zoomLabel'),
       wheelOv = $('wheelOv'), wheelCv = $('wheelCv'), wheelDots = $('wheelDots'),
       palRow = $('palRow'), hueUse = $('hueUse'), hueClose = $('hueClose'),
@@ -791,7 +797,7 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       sndStatus = $('sndStatus'), recBtn = $('recBtn'),
       sndFileBtn = $('sndFileBtn'), sndBreathBtn = $('sndBreathBtn'),
       soundsClose = $('soundsClose'), sndInput = $('sndInput'),
-      sMySnd = $('sMySnd'), recVidBtn = $('recVidBtn'), vidChip = $('vidChip'),
+      recVidBtn = $('recVidBtn'), vidChip = $('vidChip'),
       sendBtn = $('sendBtn'), sharedOv = $('sharedOv'), sharedGrid = $('sharedGrid'),
       shStatus = $('shStatus'), sharedClose = $('sharedClose'), sharedRefresh = $('sharedRefresh'),
       sharedChip = $('sharedChip'), liveChip = $('liveChip'), whoOv = $('whoOv'), sLive = $('sLive');
@@ -2700,15 +2706,6 @@ $('zoomOut').addEventListener('click', () => {
 });
 zoomLabel.addEventListener('click', () => zoomTo(1));
 
-function setQuiet(on) {
-  toolbarEl.style.display = on ? 'none' : '';
-  pagerChip.style.display = on ? 'none' : '';
-  barHandle.style.display = on ? 'none' : '';
-  zoomChip.style.display = on ? 'none' : '';
-  $('topRight').style.display = on ? 'none' : '';
-  quietChip.hidden = !on;
-}
-quietChip.addEventListener('click', () => setQuiet(false));
 
 /* ── 나만의 문구 ── */
 function loadMyCheers() {
@@ -2790,10 +2787,7 @@ slideBtn.addEventListener('click', () => {
 /* ── 메뉴 ── */
 function refreshMenu() {
   sBreath.textContent = BREATHS[breathIdx].name + ' ' + BREATHS[breathIdx].label;
-  sSound.textContent = ['꺼짐', '빗소리', '파도', '피아노'][sndMode];
-  sMySnd.textContent = mySnd.id ? '재생 중' : '녹음·파일';
-  sSeason.textContent = seasonInfo().name + (seasonOn ? ' · 켜짐' : ' · 꺼짐');
-  sAcc.textContent = ACCS[accIdx];
+  sSound.textContent = mySnd.id ? '내 소리 재생 중' : ['꺼짐', '빗소리', '파도', '피아노'][sndMode];
   if (sLive) sLive.textContent = liveOn ? '켜짐 · 둘이 한 캔버스' : '꺼짐';
   if (sPage) sPage.textContent = (pageIdx + 1) + '번째 장';
   mBgClear.hidden = !curBg;
@@ -2811,16 +2805,43 @@ $('mPet').addEventListener('click', () => { closeMenu(); petRender(); petOv.clas
 $('mNewPage').addEventListener('click', () => { closeMenu(); nextPage(); });
 $('mBgSet').addEventListener('click', () => { closeMenu(); bgInput.click(); });
 mBgClear.addEventListener('click', () => { setBg(null); scheduleSave(); refreshMenu(); });
-$('mSound').addEventListener('click', () => {
-  sndMode = (sndMode + 1) % 4;
+/* 소리: 잔잔한 소리와 내 소리가 한 문으로 */
+function refreshAmbRow() {
+  document.querySelectorAll('.ambBtn').forEach(b =>
+    b.classList.toggle('on', +b.dataset.amb === sndMode && !mySnd.id));
+}
+document.querySelectorAll('.ambBtn').forEach(b => b.addEventListener('click', () => {
+  sndMode = +b.dataset.amb;
   if (sndMode && mySnd.id) stopMySound();  // 내 소리와 동시 재생 방지
   soundApply();
+  refreshAmbRow();
   refreshMenu();
+}));
+
+/* 꾸미기: 고구마·계절·문구가 한 문으로 (뒤에 그림이 보여 바로 확인) */
+function refreshDeco() {
+  const ar = $('accRow');
+  ar.innerHTML = '';
+  ACCS.forEach((name, i) => {
+    const b = document.createElement('button');
+    b.className = 'optChip' + (i === accIdx ? ' on' : '');
+    b.textContent = name;
+    b.addEventListener('click', () => { accIdx = i; applyAcc(); refreshDeco(); scheduleSave(); });
+    ar.appendChild(b);
+  });
+  const sb = $('seasonBtn');
+  sb.textContent = seasonInfo().name + (seasonOn ? ' · 켜짐' : ' · 꺼짐');
+  sb.classList.toggle('on', seasonOn);
+}
+$('mDeco').addEventListener('click', () => { closeMenu(); refreshDeco(); decoOv.classList.remove('hidden'); });
+$('seasonBtn').addEventListener('click', () => { seasonOn = !seasonOn; applySeason(); refreshDeco(); scheduleSave(); });
+$('cheerOpenBtn').addEventListener('click', () => {
+  decoOv.classList.add('hidden');
+  renderCheerList();
+  cheerOv.classList.remove('hidden');
 });
-$('mSeason').addEventListener('click', () => { seasonOn = !seasonOn; applySeason(); refreshMenu(); scheduleSave(); });
-$('mAcc').addEventListener('click', () => { accIdx = (accIdx + 1) % ACCS.length; applyAcc(); refreshMenu(); scheduleSave(); });
-$('mCheer').addEventListener('click', () => { closeMenu(); renderCheerList(); cheerOv.classList.remove('hidden'); });
-$('mQuiet').addEventListener('click', () => { closeMenu(); setQuiet(true); });
+$('decoClose').addEventListener('click', () => decoOv.classList.add('hidden'));
+decoOv.addEventListener('click', e => { if (e.target === decoOv) decoOv.classList.add('hidden'); });
 
 /* ── 내 소리: 직접 녹음하거나 파일을 올려 재생 (기기 안에만 저장) ── */
 function stopMySound() {
@@ -2828,10 +2849,12 @@ function stopMySound() {
   if (mySnd.url) { try { URL.revokeObjectURL(mySnd.url); } catch (_) {} }
   if (mySnd.gain) { try { mySnd.gain.disconnect(); } catch (_) {} }
   mySnd = { id: 0, el: null, gain: null, url: null };
+  try { refreshAmbRow(); } catch (_) {}
 }
 function playMySound(rec) {
   stopMySound();
   if (sndMode) { sndMode = 0; soundStop(); }
+  try { refreshAmbRow(); } catch (_) {}
   try {
     if (!sndCtx) sndCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (sndCtx.resume) sndCtx.resume();
@@ -2958,11 +2981,12 @@ sndBreathBtn.addEventListener('click', () => {
   refreshSndBreathBtn();
 });
 soundsClose.addEventListener('click', () => { stopRec(); soundsOv.classList.add('hidden'); });
-$('mMySnd').addEventListener('click', () => {
+$('mSound').addEventListener('click', () => {
   closeMenu();
   sndStatus.textContent = '';
   refreshSndBreathBtn();
   renderSounds();
+  refreshAmbRow();
   soundsOv.classList.remove('hidden');
 });
 
