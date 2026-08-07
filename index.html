@@ -89,6 +89,8 @@ body{
   cursor:pointer;padding:0;font-family:inherit;line-height:1;
 }
 #zoomChip button:disabled{opacity:.3}
+#zoomChip{transition:opacity .25s ease}
+#zoomChip.zhide{opacity:0;pointer-events:none}
 #zoomLabel{
   font-size:11.5px;color:#8d7f6d;min-width:36px;text-align:center;cursor:pointer;
   background:none;border:none;font-family:inherit;padding:0;
@@ -171,12 +173,6 @@ body{
   box-shadow:0 1px 4px rgba(122,101,79,.4);
 }
 .wdot.base{width:23px;height:23px;border-width:3px}
-#harmRow{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.harmBtn{
-  border:1px solid rgba(122,101,79,.16);background:rgba(255,255,255,.8);color:#8d7f6d;
-  font-size:13px;font-family:inherit;padding:7px 13px;border-radius:999px;cursor:pointer;
-}
-.harmBtn.on{background:#efe3d3;border-color:rgba(122,101,79,.3);color:#6f6355}
 #palRow{display:flex;gap:9px;justify-content:center}
 .palChip{
   width:44px;height:44px;border-radius:14px;cursor:pointer;padding:0;
@@ -221,7 +217,6 @@ body{
 .tool svg{width:19px;height:19px;display:block}
 .tool.on{background:#efe3d3;border-color:rgba(122,101,79,.25)}
 .tool.dim{opacity:.35}
-#sizeDot{border-radius:50%;background:#6f6355;display:block}
 .tbtn{
   border:1px solid rgba(122,101,79,.16);background:rgba(255,255,255,.85);color:#6f6355;
   font-size:14px;font-family:inherit;padding:8px 13px;border-radius:999px;cursor:pointer;
@@ -232,25 +227,6 @@ body{
 #clearBtn.armed{background:#f2d9d3;border-color:#dcb3a8;color:#9c6b5f}
 #toolbar.down{transform:translateX(-50%) translateY(calc(100% + 46px));opacity:0;pointer-events:none}
 #toolbar.faded{opacity:.13;pointer-events:none}
-/* 굵기 조절 쪽지 — 툴바 바로 위에 뜬다 */
-#sizePop{
-  position:absolute;left:50%;transform:translateX(-50%);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 112px);z-index:6;
-  display:flex;flex-direction:column;align-items:center;gap:8px;
-  padding:14px 18px 12px;border-radius:20px;
-  background:rgba(255,252,244,.97);border:1px solid rgba(122,101,79,.16);
-  box-shadow:0 8px 26px rgba(122,101,79,.18);
-  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
-}
-#sizePop.hidden{display:none}
-#sizeWhat{font-size:12.5px;color:#a3937f}
-#sizePrev{
-  width:min(64vw,230px);height:46px;border-radius:14px;background:#fffdf7;
-  border:1px solid rgba(122,101,79,.1);
-  display:flex;align-items:center;justify-content:center;
-}
-#sizePrevDot{border-radius:50%;background:#6f6355;display:block}
-#sizeRange{width:min(64vw,230px)}
 
 /* ── 오버레이(인트로/저장) ───────────────────────── */
 .overlay{
@@ -456,11 +432,6 @@ body{
     <span id="pageLabel">1/1</span>
     <button id="pageNext" aria-label="다음 장">›</button>
   </div>
-  <div id="sizePop" class="hidden">
-    <div id="sizeWhat">그리기 굵기</div>
-    <div id="sizePrev"><span id="sizePrevDot"></span></div>
-    <input type="range" id="sizeRange" min="30" max="280" value="100" step="1" aria-label="굵기">
-  </div>
   <button id="barHandle" aria-label="도구 꺼내기">
     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5L10 7.5l5 5"/></svg>
   </button>
@@ -497,9 +468,6 @@ body{
     <button class="tool" id="toolStamp" data-tool="s" data-name="스탬프" aria-label="아롱이 발자국 스탬프">
       <svg viewBox="0 0 20 20" fill="currentColor"><ellipse cx="10" cy="12.8" rx="3.5" ry="2.8"/><circle cx="5.2" cy="9.6" r="1.7"/><circle cx="8.3" cy="7.4" r="1.7"/><circle cx="11.7" cy="7.4" r="1.7"/><circle cx="14.8" cy="9.6" r="1.7"/></svg>
     </button>
-    <button class="tool" id="toolPick" data-tool="i" data-name="스포이드" aria-label="스포이드 (그림에서 색 집기)">
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M12.4 3.8a2 2 0 0 1 2.8 2.8l-1.1 1.1 1 1-1.4 1.4-1-1-5.3 5.3-2.6.7.7-2.6 5.3-5.3-1-1L11.2 4.9l1 1z"/></svg>
-    </button>
     <button class="tool" id="toolEraser" data-tool="e" data-name="지우개" aria-label="지우개">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8.2 16.2L3.8 11.8a1.5 1.5 0 0 1 0-2.1l5.7-5.7a1.5 1.5 0 0 1 2.1 0l4.5 4.5a1.5 1.5 0 0 1 0 2.1l-4.9 4.9a1.5 1.5 0 0 1-1.1.4H8.2z"/><path d="M6.7 8.4l5.1 5.1"/></svg>
     </button>
@@ -508,7 +476,6 @@ body{
     <span id="optName">펜</span>
     <span id="optChips"></span>
     <span id="optSizes"></span>
-    <button class="tool" id="sizeBtn" aria-label="굵기 자세히"><span id="sizeDot"></span></button>
     <span class="sep"></span>
     <button class="tool dim" id="undoBtn" aria-label="되돌리기">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4.5L4 8l3.5 3.5"/><path d="M4 8h7.2a4.4 4.4 0 1 1-.4 8.8H8.6"/></svg>
@@ -536,7 +503,6 @@ body{
     <img id="shot" alt="오늘의 낙서">
     <div class="row">
       <button id="dlBtn" class="tbtn">이미지 저장</button>
-      <button id="postBtn" class="tbtn">엽서로</button>
       <button id="shareBtn" class="tbtn" hidden>공유하기</button>
       <button id="sendBtn" class="tbtn">우리 칸에 보내기</button>
       <button id="backBtn" class="tbtn">돌아가기</button>
@@ -623,22 +589,16 @@ body{
 
   <div id="wheelOv" class="overlay hidden">
     <div class="big">색 고르기</div>
-    <div class="small">파스텔 안에서만 움직여요</div>
+    <div class="small">원을 돌려 고르면, 어울리는 다섯 색이 따라와요 · 파스텔 안에서만</div>
     <div id="wheelWrap"><canvas id="wheelCv"></canvas><div id="wheelDots"></div></div>
-    <div id="harmRow">
-      <button class="harmBtn on" data-h="ana">비슷한 색</button>
-      <button class="harmBtn" data-h="comp">반대 색</button>
-      <button class="harmBtn" data-h="tri">세 갈래</button>
-      <button class="harmBtn" data-h="mono">한 색 농담</button>
-    </div>
     <div id="palRow"></div>
     <div class="row">
       <button id="hueUse" class="tbtn">이 색으로 그리기</button>
-      <button id="palUse" class="tbtn">이 색들로 팔레트 바꾸기</button>
-    </div>
-    <div class="row">
-      <button id="palReset" class="tbtn">처음 색으로</button>
       <button id="hueClose" class="tbtn">닫기</button>
+    </div>
+    <div class="row" style="margin-top:2px">
+      <button id="palUse" class="ghostbtn">이 다섯 색으로 팔레트 바꾸기</button>
+      <button id="palReset" class="ghostbtn">처음 색으로</button>
     </div>
   </div>
 
@@ -755,10 +715,8 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       canvas = $('draw'), mctx = canvas.getContext('2d'),
       live = $('live'), lctx = live.getContext('2d'),
       clearBtn = $('clearBtn'), saveBtn = $('saveBtn'), undoBtn = $('undoBtn'),
-      sizeBtn = $('sizeBtn'), sizeDot = $('sizeDot'), redoBtn = $('redoBtn'),
-      sizePop = $('sizePop'), sizeRange = $('sizeRange'),
+      redoBtn = $('redoBtn'),
       optName = $('optName'), optChips = $('optChips'), optSizes = $('optSizes'),
-      sizePrevDot = $('sizePrevDot'), sizeWhat = $('sizeWhat'),
       saveOverlay = $('saveOverlay'), shotImg = $('shot'),
       dlBtn = $('dlBtn'), shareBtn = $('shareBtn'), backBtn = $('backBtn'),
       pressHint = $('pressHint'), intro = $('intro'),
@@ -791,7 +749,7 @@ const breathOuter = $('breathOuter'), breathInner = $('breathInner'),
       cheerOv = $('cheerOv'), myCheerList = $('myCheerList'),
       cheerInMain = $('cheerInMain'), cheerInSub = $('cheerInSub'),
       cheerAdd = $('cheerAdd'), cheerClose = $('cheerClose'),
-      slideBtn = $('slideBtn'), postBtn = $('postBtn'),
+      slideBtn = $('slideBtn'),
       toolStampBtn = $('toolStamp'),
       soundsOv = $('soundsOv'), mySndList = $('mySndList'),
       sndStatus = $('sndStatus'), recBtn = $('recBtn'),
@@ -867,6 +825,7 @@ const strokes = [];
 const redoStack = [];         // 되돌린 획들 — '다시 실행'으로 되살린다
 let drawSize = 1, eraseSize = 1;
 let cur = null, activeId = null, lastPenTs = -1e9;
+let strokeT0 = 0, strokeSX = 0, strokeSY = 0;   // 탭(점 찍기)과 획을 구분하기 위한 시작점
 let dpr = 1, vw = 0, vh = 0;
 let color = document.querySelector('.swatch.on').dataset.color;
 let tool = 'p', lastDrawTool = 'p', sizeIdx = 1;
@@ -1084,6 +1043,7 @@ canvas.addEventListener('pointerdown', e => {
   if (tool === 'i') { pickColorAt(e.clientX, e.clientY); return; }   // 스포이드는 획을 만들지 않는다
   activeId = e.pointerId;
   try { canvas.setPointerCapture(activeId); } catch (_) {}
+  strokeT0 = performance.now(); strokeSX = e.clientX; strokeSY = e.clientY;
   const x = toDocX(e.clientX), y = toDocY(e.clientY);
   if (tool === 'p') {
     const w = penW(e);
@@ -1165,8 +1125,24 @@ function finishCurrent() {
   scheduleSave();
   if (liveOn) { try { liveSendStroke(done); } catch (_) {} }
 }
+/* 고구마를 톡 치면 호흡 속도가 바뀐다 (스탬프는 제외 — 찍으려는 의도이므로) */
+function insideGoguma(x, y) {
+  const r = breathOuter.getBoundingClientRect();
+  const mx = r.width * .08, my = r.height * .08;
+  return x >= r.left + mx && x <= r.right - mx && y >= r.top + my && y <= r.bottom - my;
+}
 function endStroke(e) {
   if (e.pointerId !== activeId) return;
+  if (cur && cur.t !== 's'
+      && performance.now() - strokeT0 < 280
+      && Math.hypot(e.clientX - strokeSX, e.clientY - strokeSY) < 7
+      && cur.pts.length <= 2
+      && insideGoguma(strokeSX, strokeSY)) {
+    cancelCurrentStroke();   // 방금 찍힌 점을 지우고
+    cycleBreath();           // 호흡 속도를 바꾼다
+    barFadeOff();
+    return;
+  }
   finishCurrent();
   barFadeOff();
 }
@@ -1176,21 +1152,19 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 /* ── 팔레트 / 도구 / 굵기 / 되돌리기 ─────────────── */
 document.querySelectorAll('.swatch').forEach(b => b.addEventListener('click', () => {
+  if (pickHeld) { pickHeld = false; return; }  // 길게 눌러 스포이드가 된 경우, 이어지는 클릭은 무시
   if (!b.dataset.color) return;  // 색상환 버튼 등은 제외
   const on = document.querySelector('.swatch.on');
   if (on) on.classList.remove('on');
   b.classList.add('on');
   color = b.dataset.color;
   if (tool === 'e' || tool === 'i') setTool(lastDrawTool);  // 색을 고르면 그리기로 복귀
-  if (!sizePop.classList.contains('hidden')) refreshSizePop();
   scheduleSave();
 }));
 
 function setTool(t) {
   tool = t;
   if (t !== 'e' && t !== 'i') lastDrawTool = t;
-  if (!sizePop.classList.contains('hidden')) refreshSizePop();
-  refreshSizeDot();
   buildOptRow();
   document.querySelectorAll('.tool[data-tool]').forEach(b =>
     b.classList.toggle('on', b.dataset.tool === t));
@@ -1198,36 +1172,23 @@ function setTool(t) {
 document.querySelectorAll('.tool[data-tool]').forEach(b =>
   b.addEventListener('click', () => setTool(b.dataset.tool)));
 
-/* ── 굵기: 버튼을 누르면 미끄럼대가 뜨고, 그리기·지우개를 따로 기억한다 ── */
-function refreshSizeDot() {
-  const d = Math.max(5, Math.min(18, Math.round(4.5 * sizeVal() * 1.5)));
-  sizeDot.style.width = d + 'px';
-  sizeDot.style.height = d + 'px';
-}
-function refreshSizePop() {
-  const erasing = tool === 'e';
-  sizeWhat.textContent = erasing ? '지우개 굵기' : '그리기 굵기';
-  const v = sizeVal();
-  sizeRange.value = String(Math.round(v * 100));
-  const shown = erasing ? eraserW() : (tool === 'm' ? markerW() : tool === 'w' ? baseW() * 2.4 : baseW() * 1.4);
-  const d = Math.max(3, Math.min(42, shown));
-  sizePrevDot.style.width = d + 'px';
-  sizePrevDot.style.height = d + 'px';
-  sizePrevDot.style.background = erasing ? 'rgba(122,101,79,.22)' : color;
-}
-function openSizePop(on) {
-  if (on) { refreshSizePop(); sizePop.classList.remove('hidden'); }
-  else sizePop.classList.add('hidden');
-}
-sizeBtn.addEventListener('click', () => openSizePop(sizePop.classList.contains('hidden')));
-sizeRange.addEventListener('input', () => {
-  const v = Math.max(.3, Math.min(2.8, (+sizeRange.value || 100) / 100));
-  if (tool === 'e') eraseSize = v; else drawSize = v;
-  refreshSizeDot();
-  refreshSizePop();
-  scheduleSave();
+/* ── 스포이드: 색 동그라미를 길게 누르면 그림에서 색을 집는다 ── */
+let pickHoldT = 0, pickHeld = false;
+document.querySelectorAll('.swatch').forEach(b => {
+  b.addEventListener('pointerdown', () => {
+    pickHeld = false;
+    clearTimeout(pickHoldT);
+    pickHoldT = setTimeout(() => {
+      pickHeld = true;
+      setTool('i');
+      cloudCue('그림의 선을 톡 — 그 색을 집어요');
+    }, 550);
+  });
+  const cancel = () => clearTimeout(pickHoldT);
+  b.addEventListener('pointerup', cancel);
+  b.addEventListener('pointerleave', cancel);
+  b.addEventListener('pointercancel', cancel);
 });
-refreshSizeDot();
 
 /* ── 다시 실행 ── */
 function refreshRedo() { redoBtn.classList.toggle('dim', !redoStack.length); }
@@ -1812,7 +1773,7 @@ async function restoreState() {
     }
     if (typeof d.dsz === 'number' && d.dsz > 0) drawSize = cl(d.dsz);
     if (typeof d.esz === 'number' && d.esz > 0) eraseSize = cl(d.esz);
-    refreshSizeDot();
+    buildOptRow();
     if (Number.isInteger(d.breathIdx) && d.breathIdx >= 0 && d.breathIdx < BREATHS.length) {
       breathIdx = d.breathIdx;
       applyBreath();
@@ -1908,10 +1869,6 @@ saveBtn.addEventListener('click', async () => {
     if (shotUrl) URL.revokeObjectURL(shotUrl);
     shotUrl = URL.createObjectURL(shotBlob);
     shotImg.src = shotUrl;
-    postOn = false;
-    postBtn.textContent = '엽서로';
-    if (postUrl) { URL.revokeObjectURL(postUrl); postUrl = null; }
-    postBlob = null;
     const pool = allCheers();
     const ch = pool[(Math.random() * pool.length) | 0] || ['잘했어요', ''];
     cheerMain.textContent = ch[0];
@@ -1926,21 +1883,18 @@ saveBtn.addEventListener('click', async () => {
   }
   saveBtn.disabled = false;
 });
-function activeUrl() { return (postOn && postUrl) ? postUrl : shotUrl; }
-function activeBlob() { return (postOn && postBlob) ? postBlob : shotBlob; }
 dlBtn.addEventListener('click', () => {
-  const u = activeUrl();
-  if (!u) return;
+  if (!shotUrl) return;
   const a = document.createElement('a');
-  a.href = u;
-  a.download = (postOn ? 'postcard_' : '') + fileName();
+  a.href = shotUrl;
+  a.download = fileName();
   document.body.appendChild(a);
   a.click();
   a.remove();
 });
 shareBtn.addEventListener('click', async () => {
   try {
-    await navigator.share({ title: '만세구마쥬키우기', files: [new File([activeBlob()], fileName(), { type: 'image/png' })] });
+    await navigator.share({ title: '만세구마쥬키우기', files: [new File([shotBlob], fileName(), { type: 'image/png' })] });
   } catch (_) { /* 사용자가 공유를 취소한 경우 */ }
 });
 backBtn.addEventListener('click', () => saveOverlay.classList.add('hidden'));
@@ -1959,53 +1913,6 @@ document.addEventListener('keydown', e => {
 });
 
 /* ══════════ 확장 기능들 ══════════ */
-
-/* ── 엽서 만들기 ── */
-let postOn = false, postUrl = null, postBlob = null;
-postBtn.addEventListener('click', () => {
-  if (!shotUrl) return;
-  if (postOn) {
-    postOn = false;
-    postBtn.textContent = '엽서로';
-    shotImg.src = shotUrl;
-    return;
-  }
-  if (postUrl) {  // 이미 만들어둔 엽서 재사용
-    postOn = true;
-    postBtn.textContent = '원본으로';
-    shotImg.src = postUrl;
-    return;
-  }
-  const i = new Image();
-  i.onload = () => {
-    const pad = Math.round(i.naturalWidth * .05);
-    const cv = document.createElement('canvas');
-    cv.width = i.naturalWidth + pad * 2;
-    cv.height = i.naturalHeight + pad * 2 + Math.round(pad * 2.4);
-    const c = cv.getContext('2d');
-    c.fillStyle = '#fffdf8';
-    c.fillRect(0, 0, cv.width, cv.height);
-    c.strokeStyle = 'rgba(122,101,79,.18)';
-    c.lineWidth = Math.max(2, pad * .08);
-    c.strokeRect(c.lineWidth / 2, c.lineWidth / 2, cv.width - c.lineWidth, cv.height - c.lineWidth);
-    c.drawImage(i, pad, pad);
-    const d = new Date();
-    c.fillStyle = '#8d7f6d';
-    c.font = Math.round(pad * .9) + 'px -apple-system, "Apple SD Gothic Neo", sans-serif';
-    c.textAlign = 'center';
-    c.fillText(d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '  ·  ' + cheerMain.textContent,
-      cv.width / 2, i.naturalHeight + pad + Math.round(pad * 1.6));
-    cv.toBlob(b => {
-      if (!b) return;
-      postBlob = b;
-      postUrl = URL.createObjectURL(b);
-      postOn = true;
-      postBtn.textContent = '원본으로';
-      shotImg.src = postUrl;
-    }, 'image/png');
-  };
-  i.src = shotUrl;
-});
 
 /* ── 질감 브러시: 연필·크레용 (시드 고정 → 리플레이도 동일 질감) ── */
 function sRand(seed) {
@@ -2199,14 +2106,12 @@ function buildOptRow() {
       b.appendChild(i);
       b.addEventListener('click', () => {
         if (tool === 'e') eraseSize = v; else drawSize = v;
-        refreshSizeDot(); buildOptRow();
-        if (!sizePop.classList.contains('hidden')) refreshSizePop();
+        buildOptRow();
         scheduleSave();
       });
       optSizes.appendChild(b);
     }
   }
-  sizeBtn.style.display = tool === 'i' ? 'none' : '';
 }
 
 /* ── 파스텔 색상환 ── */
@@ -2378,13 +2283,6 @@ wheelCv.addEventListener('pointermove', e => { if (wheelDrag) wheelPick(e); });
 wheelCv.addEventListener('pointerup', () => { wheelDrag = false; });
 wheelCv.addEventListener('pointercancel', () => { wheelDrag = false; });
 
-document.querySelectorAll('.harmBtn').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('.harmBtn').forEach(o => o.classList.remove('on'));
-  b.classList.add('on');
-  harmMode = b.dataset.h;
-  palSel = -1;
-  refreshWheelUI();
-}));
 function applyPalette(hexes, select) {
   const sw = document.querySelectorAll('.swatch[data-color]:not(#customSwatch)');
   hexes.forEach((hex, i) => {
@@ -2404,6 +2302,7 @@ function currentPalette() {
   return Array.from(document.querySelectorAll('.swatch[data-color]:not(#customSwatch)')).map(b => b.dataset.color);
 }
 wheelBtn.addEventListener('click', () => {
+  if (pickHeld) { pickHeld = false; return; }  // 길게 눌러 스포이드가 된 경우
   wheelOv.classList.remove('hidden');
   wheelCv.offsetWidth;  // 배치 확정 후 그려야 크기가 잡힌다
   drawWheel();
@@ -2690,6 +2589,8 @@ function refreshZoom() {
   zoomLabel.textContent = Math.round(vs.scale * 100) + '%';
   $('zoomOut').disabled = vs.scale <= 1.001;
   $('zoomIn').disabled = vs.scale >= Z_MAX - .001;
+  /* 100%일 때는 조용히 사라진다 — 확대 중일 때만 보이면 충분 */
+  zoomChip.classList.toggle('zhide', vs.scale <= 1.001);
 }
 function zoomTo(s, cx, cy) {
   if (cx === undefined) { cx = vw / 2; cy = vh / 2; }
@@ -3009,6 +2910,8 @@ function previewPinch() {
   pinchRaf = 0;
   if (!pinch) return;
   const a = pinch.vs0, b = pinch.cur;
+  zoomChip.classList.remove('zhide');
+  zoomLabel.textContent = Math.round(b.scale * 100) + '%';
   const k = b.scale / a.scale;
   const t = 'translate(' + (b.ox - a.ox * k) + 'px,' + (b.oy - a.oy * k) + 'px) scale(' + k + ')';
   for (const cv of [canvas, live, bgcv]) { cv.style.transformOrigin = '0 0'; cv.style.transform = t; }
